@@ -1,0 +1,194 @@
+% 编译：xelatex sec4.tex（两遍）
+\documentclass[12pt,a4paper]{article}
+\IfFileExists{ctex.sty}{%
+  \usepackage[scheme=chinese]{ctex}%
+}{%
+  \usepackage{fontspec}%
+  \setmainfont{Noto Serif CJK SC}\setsansfont{Noto Sans CJK SC}%
+  \XeTeXlinebreaklocale "zh"\XeTeXlinebreakskip=0pt plus 1pt%
+  \usepackage{indentfirst}\setlength{\parindent}{2em}%
+  \renewcommand{\figurename}{图}\renewcommand{\tablename}{表}%
+}
+\usepackage{amsmath,amssymb,amsthm}
+\usepackage{booktabs,array,graphicx}
+\usepackage[a4paper,margin=2.5cm]{geometry}
+\usepackage[font=small,labelsep=quad]{caption}
+
+\setcounter{section}{3}
+\renewcommand{\theequation}{4-\arabic{equation}}
+\renewcommand{\thefigure}{4-\arabic{figure}}
+\renewcommand{\thetable}{4-\arabic{table}}
+\theoremstyle{definition}
+\newtheorem{lemma}{引理}
+\newtheorem{proposition}{命题}
+\newtheorem{corollary}{推论}
+\renewcommand{\proofname}{证明}
+\newcommand{\cJ}{\mathcal{J}}
+\newcommand{\CapR}{\mathrm{Cap}}
+
+\begin{document}
+
+\section{问题结构分析与调度性质}
+
+本文的调度问题同时包含作业级交货期与服务实体级累计检查点两类要求。一个作业的优先级不仅取决于加工时间与机器可用性，还取决于它能否赶上检查点、检查点当前的服务缺口有多大，以及后续作业的到达情况。本节从当前合法可见的状态出发，依次分析可见作业对检查点的及时贡献可达性（4.1 节）、检查点的预测供给风险（4.2 节）和机器容量压力（4.3 节），得到若干含义明确、可在线计算的理论量，并在 4.4 节说明它们与第5节的对应关系。
+
+所有理论量遵循第3节的信息边界，只使用已释放作业的已知属性、正在执行的加工以及实体级聚合数量预测，不读取未释放作业的信息。理论量用于第5节的状态表示与规则构造，不改变目标 $F=\mathrm{TT}+\mathrm{WSF}$。下文以 $t$ 表示当前决策时刻，$(r,k)$ 表示服务实体 $r$ 的第 $k$ 个检查点，$\tau_{rk}$、$Q_{rk}$、$w_{rk}$ 为其时刻、累计目标与权重，$\cJ_t$ 为已释放且未完成的作业集合。
+
+\begin{figure}[t]
+  \centering
+  \includegraphics[width=0.92\textwidth]{fig4_1.png}
+  \caption{问题结构分析、理论量与在线调度接口}
+  \label{fig:overview}
+\end{figure}
+
+%=====================================================================
+\subsection{可见作业的检查点可达性与交期紧迫性}
+
+对尚未结算的检查点 $(r,k)$（$t<\tau_{rk}$），当前剩余服务缺口为
+\begin{equation}\label{eq:gap}
+  G_{rkt}=\max\{0,\;Q_{rk}-Y_{rt}\},
+\end{equation}
+其中 $Y_{rt}$ 为第3节定义的实体 $r$ 已完工数量。
+
+对作业 $J_j\in\cJ_t$，记其正在执行工序的剩余加工时间为 $p^{\mathrm{run}}_j$（无则为 0），尚未开始的工序在合格机器上的最短加工时间为 $p^{\min}_{j\ell}$。忽略排队与机器竞争，作业的乐观完成时间下界为
+\begin{equation}\label{eq:clb}
+  C^{\mathrm{LB}}_j(t)=t+p^{\mathrm{run}}_j+\sum_{\ell\ \text{未开始}}p^{\min}_{j\ell}.
+\end{equation}
+
+\begin{lemma}\label{lem:clb}
+对第3节约束下的任一可行延续排程，作业 $J_j$ 的实际完成时刻不早于 $C^{\mathrm{LB}}_j(t)$。因此，若 $J_j$ 属于实体 $r$ 且 $C^{\mathrm{LB}}_j(t)>\tau_{rk}$，则它不可能为检查点 $(r,k)$ 提供及时的服务数量。
+\end{lemma}
+\begin{proof}
+由非抢占约束，执行中工序的剩余加工时间不可缩短；每道未开始工序的实际加工时间不小于其最短加工时间；机器等待只会增加完成时间。故实际完成时刻不小于 $C^{\mathrm{LB}}_j(t)$。若该下界已超过 $\tau_{rk}$，则作业不满足第3节的及时贡献条件 $C_j\le\tau_{rk}$。
+\end{proof}
+
+据此，检查点 $(r,k)$ 的潜在及时贡献作业集合为
+\begin{equation}\label{eq:omega}
+  \Omega_{rkt}=\{J_j\in\cJ_t:\ e_j=r,\ C^{\mathrm{LB}}_j(t)\le\tau_{rk}\},
+\end{equation}
+其中 $e_j$ 为作业 $J_j$ 所属的服务实体。
+
+\begin{lemma}\label{lem:mono}
+沿任一可行延续排程，已释放作业的 $C^{\mathrm{LB}}_j(t)$ 关于 $t$ 不减。因此作业一旦退出 $\Omega_{rkt}$，在其完成之前不会重新进入。
+\end{lemma}
+\begin{proof}
+设 $t\le t'$ 且期间无工序启动或完工。若作业有工序正在执行，则 $t+p^{\mathrm{run}}_j$ 等于该工序的完工时刻，保持不变；否则 $C^{\mathrm{LB}}_j$ 的各项中只有 $t$ 增大。设某工序 $O_{j\ell}$ 在 $s\ge t$ 启动并占用机器 $m$，则启动后 $C^{\mathrm{LB}}_j$ 中该工序的贡献由 $p^{\min}_{j\ell}$ 变为 $p_{j\ell m}\ge p^{\min}_{j\ell}$，且 $s\ge t$，故下界不减。工序完工时 $p^{\mathrm{run}}_j$ 归零，$t+p^{\mathrm{run}}_j$ 保持为该完工时刻，也不减。逐段累积即得结论。
+\end{proof}
+该性质说明资格的排除不可逆，第5节将其用作规则过滤条件是自洽的。已退出 $\Omega_{rkt}$ 的作业仍可能因自身交期或后续检查点而需要派工，因此不从合法派工集合中排除。
+
+作业的乐观交期余量与相对检查点的乐观时间余量分别为
+\begin{equation}\label{eq:slack}
+  S^{d}_j(t)=d_j-C^{\mathrm{LB}}_j(t),\qquad S^{C}_{jrk}(t)=\tau_{rk}-C^{\mathrm{LB}}_j(t).
+\end{equation}
+余量越小，交期或检查点的时间压力越大；$S^{C}_{jrk}(t)<0$ 等价于作业退出 $\Omega_{rkt}$。
+
+%=====================================================================
+\subsection{检查点的预测供给风险}
+
+可见作业只是检查点最终供给的一部分，后续到达的作业也会贡献服务数量。仅按可见作业判断供给是否不足，会把未来供给充足的检查点误判为高风险；直接使用未来真实到达又违反信息边界。因此，本节以可见供给的乐观上界和实体级聚合数量预测为依据。
+
+\subsubsection{未来剩余需求与预测数量不足}
+
+当前可见且仍可能及时提供的数量为 $\sum_{J_j\in\Omega_{rkt}}q_j$，其中 $q_j$ 为作业 $J_j$ 的服务数量。扣除后，需由未来到达作业承担的剩余需求为
+\begin{equation}\label{eq:qfut}
+  Q^{\mathrm{fut}}_{rkt}=\max\Bigl\{0,\;G_{rkt}-\sum_{J_j\in\Omega_{rkt}}q_j\Bigr\}.
+\end{equation}
+$Q^{\mathrm{fut}}_{rkt}>0$ 表示即使所有潜在贡献作业都及时完成，检查点仍需要未来作业参与才可能被满足。
+
+预测模块在时刻 $t$ 给出实体 $r$ 各时间桶内未来到达服务数量的均值与不确定度。以均值减去 $\kappa$ 倍标准差（$\kappa\ge0$，截断为非负）作为保守预测，并在桶内按常数速率分配，记从 $t$ 到 $t'$ 的保守累计预测到达数量为 $\Lambda_r(t,t')$，它关于 $t'$ 连续且不减。检查点的预测数量不足量为
+\begin{equation}\label{eq:dfc}
+  \Delta^{\mathrm{fc}}_{rk}(t)=\max\bigl\{0,\;Q^{\mathrm{fut}}_{rkt}-\Lambda_r(t,\tau_{rk})\bigr\}.
+\end{equation}
+$\Delta^{\mathrm{fc}}_{rk}(t)>0$ 表示保守预测下，可见供给与未来到达之和仍不足以覆盖检查点。该量仅依赖预测，作为风险信号使用。
+
+\subsubsection{预测供给的到达时序}
+
+两组预测在检查点之前的总量相同时，到达更晚的一组留给后续加工的时间更少。当 $Q^{\mathrm{fut}}_{rkt}>0$ 且 $\Lambda_r(t,\tau_{rk})\ge Q^{\mathrm{fut}}_{rkt}$ 时，记保守累计预测首次达到 $Q^{\mathrm{fut}}_{rkt}$ 的时刻为 $t^{\mathrm{cov}}_{rk}$，定义预测到达时间余量
+\begin{equation}\label{eq:sfc}
+  S^{\mathrm{fc}}_{rk}(t)=\tau_{rk}-t^{\mathrm{cov}}_{rk}.
+\end{equation}
+余量越小，所需的未来数量越接近检查点才能凑齐。其中 $t^{\mathrm{cov}}_{rk}=\inf\{t'\in[t,\tau_{rk}]:\Lambda_r(t,t')\ge Q^{\mathrm{fut}}_{rkt}\}$，由 $\Lambda_r$ 的连续性可以取到。在上述条件之外，$S^{\mathrm{fc}}_{rk}(t)$ 不定义（前者无需未来供给，后者的数量不足已由 $\Delta^{\mathrm{fc}}_{rk}$ 刻画），以标志 $\iota^{\mathrm{fc}}_{rk}\in\{0,1\}$ 记录其是否有定义，取 0 时 $S^{\mathrm{fc}}_{rk}$ 取占位值 0。
+
+\begin{lemma}\label{lem:shift}
+对同一检查点与同一 $Q^{\mathrm{fut}}_{rkt}>0$，设两个保守累计预测 $\Lambda^{(1)}_r$、$\Lambda^{(2)}_r$ 均在 $\tau_{rk}$ 前覆盖 $Q^{\mathrm{fut}}_{rkt}$。若对所有 $t'\in[t,\tau_{rk}]$ 有 $\Lambda^{(2)}_r(t,t')\le\Lambda^{(1)}_r(t,t')$，则 $t^{\mathrm{cov},(2)}_{rk}\ge t^{\mathrm{cov},(1)}_{rk}$，从而 $S^{\mathrm{fc},(2)}_{rk}(t)\le S^{\mathrm{fc},(1)}_{rk}(t)$。
+\end{lemma}
+\begin{proof}
+记 $\mathcal{T}^{(i)}=\{t'\in[t,\tau_{rk}]:\Lambda^{(i)}_r(t,t')\ge Q^{\mathrm{fut}}_{rkt}\}$。若 $t'\in\mathcal{T}^{(2)}$，则 $\Lambda^{(1)}_r(t,t')\ge\Lambda^{(2)}_r(t,t')\ge Q^{\mathrm{fut}}_{rkt}$，即 $t'\in\mathcal{T}^{(1)}$。故 $\mathcal{T}^{(2)}\subseteq\mathcal{T}^{(1)}$，下确界满足 $t^{\mathrm{cov},(1)}_{rk}\le t^{\mathrm{cov},(2)}_{rk}$。两侧均以 $\tau_{rk}$ 作差即得结论。
+\end{proof}
+引理~\ref{lem:shift} 说明预测到达整体后移时，时间余量不会增大。
+
+\begin{figure}[t]
+  \centering
+  \includegraphics[width=0.95\textwidth]{fig4_2.png}
+  \caption{检查点的预测数量风险与到达时序风险示意（示意性数据）}
+  \label{fig:forecast}
+\end{figure}
+
+%=====================================================================
+\subsection{检查点的机器容量压力}
+
+即使可见作业在时间下界上都能赶上检查点，机器时间也可能不足。本节在保持已启动加工不变的前提下，分析当前可见作业补足检查点缺口所需的最低加工工作量，并与机器能提供的时间上界比较。
+
+设检查点 $(r,k)$ 满足 $G_{rkt}>0$。若某作业正在加工最后一道工序且完工时刻不晚于 $\tau_{rk}$，其服务数量已由当前加工确定，记这类作业的数量之和为 $A_{rkt}$，剩余缺口为 $G^{+}_{rkt}=\max\{0,\,G_{rkt}-A_{rkt}\}$。其余属于 $\Omega_{rkt}$ 的作业构成追加候选集合 $\Omega^{+}_{rkt}$。当 $G^{+}_{rkt}>0$ 且 $\Omega^{+}_{rkt}$ 的数量之和不小于 $G^{+}_{rkt}$ 时，容量分析适用，否则 $\iota^{\mathrm{cap}}_{rk}=0$，下文的 $\Delta^{\mathrm{cap}}_{rk}$ 取 0。
+
+对 $J_j\in\Omega^{+}_{rkt}$，记 $W_j$ 为其尚未开始工序的最短加工时间之和，每单位服务数量所需的最小加工工作量为
+\[
+  \nu_{rk}=\min_{J_j\in\Omega^{+}_{rkt}}W_j/q_j .
+\]
+补足 $G^{+}_{rkt}$ 单位服务数量至少需要 $G^{+}_{rkt}\,\nu_{rk}$ 的加工工作量。另一方面，机器 $m$ 在 $[t,\tau_{rk}]$ 内最多还能提供 $\max\{0,\;\tau_{rk}-t-b_m\}$ 的加工时间，其中 $b_m$ 为其当前正在加工工序的剩余时间（空闲则为 0）。对追加候选的未开始工序所涉及的合格机器求和，得到可用容量上界
+\begin{equation}\label{eq:cap}
+  \CapR_{rk}(t)=\sum_{m\in\mathcal{M}^{+}_{rk}}\max\{0,\;\tau_{rk}-t-b_m\},
+\end{equation}
+其中 $\mathcal{M}^{+}_{rk}$ 为这些合格机器之并集。
+
+\begin{proposition}\label{prop:cap}
+在上述适用条件下，若存在满足非抢占、工序先后与机器资格约束的可行延续排程，使当前可见作业在 $\tau_{rk}$ 前补足缺口 $G_{rkt}$，则
+\begin{equation}\label{eq:prop}
+  G^{+}_{rkt}\,\nu_{rk}\le\CapR_{rk}(t).
+\end{equation}
+\end{proposition}
+\begin{proof}
+由引理~\ref{lem:clb}，及时完工的可见作业属于 $\Omega_{rkt}$，其中已确定的部分提供 $A_{rkt}$，故所选的追加作业子集 $\mathcal{S}\subseteq\Omega^{+}_{rkt}$ 满足 $\sum_{\mathcal{S}}q_j\ge G^{+}_{rkt}$。由 $\nu_{rk}$ 的定义，$\sum_{\mathcal{S}}W_j\ge\nu_{rk}\sum_{\mathcal{S}}q_j\ge G^{+}_{rkt}\,\nu_{rk}$。这些工序必须在 $\mathcal{M}^{+}_{rk}$ 的机器上于 $\tau_{rk}$ 前完成，而已启动加工的占用不可撤销，可用的机器时间至多为 $\CapR_{rk}(t)$，故式~\eqref{eq:prop} 成立。
+\end{proof}
+
+由式~\eqref{eq:prop}，当前可见作业至多还能补足 $\CapR_{rk}(t)/\nu_{rk}$ 单位的服务数量。定义容量压力
+\begin{equation}\label{eq:dcap}
+  \Delta^{\mathrm{cap}}_{rk}(t)=\max\bigl\{0,\;G^{+}_{rkt}-\CapR_{rk}(t)/\nu_{rk}\bigr\}.
+\end{equation}
+
+\begin{corollary}\label{cor:cap}
+在命题~\ref{prop:cap} 的条件下，任一可行延续排程中，当前可见作业无法补足的服务数量不少于 $\Delta^{\mathrm{cap}}_{rk}(t)$。
+\end{corollary}
+\begin{proof}
+设所选追加作业子集 $\mathcal{S}$ 补足的数量为 $x=\sum_{\mathcal{S}}q_j$。命题~\ref{prop:cap} 的证明给出 $\nu_{rk}\,x\le\sum_{\mathcal{S}}W_j\le\CapR_{rk}(t)$，即 $x\le\CapR_{rk}(t)/\nu_{rk}$。因此追加缺口 $G^{+}_{rkt}$ 中未被补足的部分不少于 $G^{+}_{rkt}-\CapR_{rk}(t)/\nu_{rk}$。
+\end{proof}
+
+$\Delta^{\mathrm{cap}}_{rk}(t)$ 以服务数量为单位，其下界含义仅针对当前可见作业：这部分缺口只能依赖后续到达的作业补足，因此它不构成实例不可行的证明。$\Delta^{\mathrm{cap}}_{rk}(t)=0$ 表示尚未被该乐观下界排除。该量在第5节中作为状态特征和可选的排序特征使用。
+
+%=====================================================================
+\subsection{理论量与在线调度的接口}
+
+4.1 至 4.3 节从三个层次刻画服务风险：作业层面的完成时间下界与余量，检查点层面的预测数量与到达时序，以及机器容量。表~\ref{tab:iface} 汇总各理论量及其在第5节中的用途。
+
+\begin{table}[t]
+  \centering
+  \caption{理论量及其在第5节中的用途}\label{tab:iface}
+  \small
+  \begin{tabular}{@{}>{\raggedright}p{3.6cm}>{\raggedright}p{3.2cm}>{\raggedright\arraybackslash}p{7.2cm}@{}}
+    \toprule
+    理论量 & 含义 & 在第5节中的用途 \\
+    \midrule
+    $C^{\mathrm{LB}}_j(t)$ & 作业完成时间下界 & 计算交期余量与检查点余量 \\
+    $S^{d}_j(t)$，$S^{C}_{jrk}(t)$ & 交期余量；检查点余量 & 规则排序特征；作业—检查点边属性 \\
+    $\Omega_{rkt}$，$\chi^{Q}_{jrk}(t)$ & 潜在及时贡献集合及其资格标志 & 规则过滤条件；作业—检查点边属性 \\
+    $G_{rkt}$，$W_j$ & 剩余缺口；未开始工序的工作量 & 目标检查点选择与单位工作量数量等排序特征 \\
+    $\Delta^{\mathrm{fc}}_{rk}(t)$ & 预测数量不足 & 目标检查点选择；检查点状态特征 \\
+    $S^{\mathrm{fc}}_{rk}(t)$，$\iota^{\mathrm{fc}}_{rk}$ & 预测到达时间余量及标志 & 检查点状态特征 \\
+    $\Delta^{\mathrm{cap}}_{rk}(t)$，$\iota^{\mathrm{cap}}_{rk}$ & 容量压力及标志 & 检查点状态特征；可选的排序特征 \\
+    \bottomrule
+  \end{tabular}
+\end{table}
+
+规则的过滤条件采用资格标志 $\chi^{Q}_{jrk}(t)=\mathbf{1}[J_j\in\Omega_{rkt},\,G_{rkt}>0]$，它只判断作业对检查点的潜在贡献资格，作业是否可以立即派工仍需检查其工序是否就绪、是否存在空闲的合格机器。第3节的 $Y_{rt}$ 与实际短缺始终基于已完工作业，本节的各理论量不参与目标结算，第5节的奖励按真实完成的 $\mathrm{TT}+\mathrm{WSF}$ 增量计算。
+
+\end{document}

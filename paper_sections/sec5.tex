@@ -1,0 +1,299 @@
+% 编译方式：xelatex sec5.tex（运行两次以解析交叉引用）
+\documentclass[12pt,a4paper]{article}
+
+% ---- 中文支持：本机有 ctex 则用 ctex，否则回退到 fontspec + Noto CJK ----
+\IfFileExists{ctex.sty}{%
+  \usepackage[scheme=chinese]{ctex}%
+}{%
+  \usepackage{fontspec}%
+  \setmainfont{Noto Serif CJK SC}%
+  \setsansfont{Noto Sans CJK SC}%
+  \XeTeXlinebreaklocale "zh"%
+  \XeTeXlinebreakskip=0pt plus 1pt%
+  \usepackage{indentfirst}\setlength{\parindent}{2em}%
+  \renewcommand{\figurename}{图}\renewcommand{\tablename}{表}%
+  \renewcommand{\contentsname}{目录}%
+}
+
+\usepackage{amsmath,amssymb}
+\usepackage{booktabs,array,graphicx}
+\usepackage[a4paper,margin=2.5cm]{geometry}
+\usepackage[font=small,labelsep=quad]{caption}
+\usepackage{algorithm}
+\usepackage[noend]{algpseudocode}
+\usepackage{enumitem}
+
+% ---- 编号：节号从5起，公式/图/表按"5-N"编号 ----
+\setcounter{section}{4}
+\renewcommand{\theequation}{5-\arabic{equation}}
+\renewcommand{\thefigure}{5-\arabic{figure}}
+\renewcommand{\thetable}{5-\arabic{table}}
+\renewcommand{\thealgorithm}{\arabic{algorithm}}
+\renewcommand{\algorithmicrequire}{\textbf{输入：}}
+\renewcommand{\algorithmicensure}{\textbf{输出：}}
+\floatname{algorithm}{算法}
+
+% ---- 常用记号（尽量少） ----
+\newcommand{\cJ}{\mathcal{J}}
+\newcommand{\cH}{\mathcal{H}}
+\newcommand{\cG}{\mathcal{G}}
+\newcommand{\cI}{\mathcal{I}}
+\newcommand{\cum}{\mathrm{cum}}
+
+\begin{document}
+
+\section{理论引导的大语言模型规则生成与异构图强化学习求解方法}
+
+针对第3节的动态柔性作业车间调度与累计服务检查点问题，本节提出理论引导的大语言模型（large language model，LLM）规则生成与异构图强化学习求解方法。方法分为离线与在线两个阶段。离线阶段以第4节的理论量为特征，由 LLM 在仿真反馈下迭代生成启发式规则，经合法性检验、行为去重与验证集复核后得到固定的规则库。在线阶段由异构图 Transformer（heterogeneous graph transformer，HGT）编码当前状态，近端策略优化（proximal policy optimization，PPO）策略在每个决策时刻从规则库中选择一条规则，在该时刻连续派工，并以真实目标增量作为奖励。
+
+第4节的理论量仅用于规则设计与状态表示，不改变第3节的可行域与目标 $F=\mathrm{TT}+\mathrm{WSF}$。图~\ref{fig:flow} 给出整体流程，5.1 节为状态表示，5.2 节为规则库构造，5.3 节为奖励，5.4 节为 HGT--PPO 求解。
+
+\begin{figure}[t]
+  \centering
+  \includegraphics[width=0.92\textwidth]{fig5_4.png}
+  \caption{理论引导的 LLM 规则生成与 HGT--PPO 在线调度流程}
+  \label{fig:flow}
+\end{figure}
+
+%=====================================================================
+\subsection{面向服务检查点的异构状态表示}
+
+\subsubsection{异构图构建}
+
+第 $n$ 次决策发生在物理时刻 $t_n$。此时同一时刻的工序完工、作业释放与检查点结算均已处理，当前合法可见状态构造为异构图
+\begin{equation}\label{eq:graph}
+  \cG_n=(\mathcal{V}_n,\mathcal{E}_n),\qquad
+  \mathcal{V}_n=\mathcal{V}^{J}_n\cup\mathcal{V}^{O}_n\cup\mathcal{V}^{M}_n\cup\mathcal{V}^{C}_n .
+\end{equation}
+四类节点依次为已释放且未完成的作业、这些作业的全部工序、全部机器，以及尚未结算的服务检查点。图中不含未释放作业与未来工序的信息。
+
+图包含四类关系（图~\ref{fig:graph}）：作业—工序（所属关系）、工序—工序（同一作业内相邻工序的先后约束）、工序—机器（可加工关系，边属性为加工时间）、作业—检查点（作业所属实体的未结算检查点，边属性为第4.1节的检查点余量及乐观及时贡献资格）。为实现双向传播，每类关系同时设置反向边。
+
+\begin{figure}[t]
+  \centering
+  \includegraphics[width=0.78\textwidth]{fig5_1.png}
+  \caption{服务检查点感知的异构调度图示意（一个作业、两道工序、两台机器、两个检查点）}
+  \label{fig:graph}
+\end{figure}
+
+\subsubsection{节点、边与全局特征}
+
+节点特征记录作业进度、机器占用和检查点需求，边特征描述局部加工代价与潜在贡献，全部由当前合法可见状态及实体级预测快照生成（表~\ref{tab:feat}）。时间类量除以训练前固定的参考时长，加工时间与剩余工作量同样按各自的参考尺度缩放，数量缺口按检查点目标数量 $Q_{rk}$ 缩放，所有缩放后的取值裁剪至 $[-1,1]$。预测相关的特征（预测到达余量、容量压力）仅在第4.2、4.3节规定的适用条件下有定义，其余情形取 0，并附一个 0/1 标志位以示区分。
+
+\begin{table}[t]
+  \centering
+  \caption{异构图的主要输入特征}\label{tab:feat}
+  \small
+  \begin{tabular}{@{}>{\raggedright}p{2.2cm}>{\raggedright}p{7.2cm}>{\raggedright\arraybackslash}p{4.8cm}@{}}
+    \toprule
+    对象 & 主要特征 & 来源 \\
+    \midrule
+    作业 & 剩余工序比例、服务数量、剩余工作量、交期余量 & 第3、4.1、4.3节 \\
+    工序 & 状态（完成/执行/就绪/等待）、最短与平均加工时间、合格机器比例 & 第3节 \\
+    机器 & 忙闲标志、剩余占用时间、累计利用率、就绪工序数 & 当前加工状态 \\
+    检查点 & 目标数量与权重、剩余时间、当前缺口、预测数量不足、预测到达余量、容量压力 & 第3、4.1--4.3节 \\
+    作业—检查点边 & 检查点余量、乐观及时贡献资格 & 第4.1、4.4节 \\
+    工序—机器边 & 加工时间 & 第3节 \\
+    全局 & 物理时间、可见作业数、可派工数、空闲机器数、未结算检查点数 & 当前状态 \\
+    \bottomrule
+  \end{tabular}
+\end{table}
+
+\subsubsection{HGT 编码}
+
+四类节点的原始特征维度不同，先经类型特定的线性映射得到统一维度的初始表示。随后采用 Hu 等人提出的 HGT~\cite{hu2020hgt}，为每种关系类型分别设置注意力与消息变换，各层以残差方式更新节点表示。与标准 HGT 相比，本文有两处调整：其一，将数值边属性经线性变换后加入键与值，使加工时间、检查点余量等连续量参与注意力计算；其二，节点更新采用 ReLU 激活。
+
+经所有 HGT 层编码后，对每类节点做类型内注意力池化，并与全局特征拼接，经多层感知机得到状态向量
+\begin{equation}\label{eq:zn}
+  z_n=\mathrm{MLP}\bigl(h^{J}_n\,\Vert\,h^{O}_n\,\Vert\,h^{M}_n\,\Vert\,h^{C}_n\,\Vert\,x^{\mathrm{glob}}_n\bigr),
+\end{equation}
+其中 $h^{q}_n$ 为第 $q$ 类节点的池化向量，$x^{\mathrm{glob}}_n$ 为全局特征。某类节点为空时对应池化向量取零。$z_n$ 同时输入 Actor 与 Critic（图~\ref{fig:hgt}）。
+
+\begin{figure}[t]
+  \centering
+  \includegraphics[width=0.95\textwidth]{fig5_2.png}
+  \caption{融合数值边属性与全局特征的 HGT 状态编码流程}
+  \label{fig:hgt}
+\end{figure}
+
+%=====================================================================
+\subsection{启发式规则库构造}
+
+在线调度的动作空间是一组固定的启发式规则。本节说明其离线构造过程：由第4节的理论量确定可用特征（5.2.1 节），规定规则的结构并给出分类（5.2.2 节），由 LLM 迭代生成并筛选候选规则（5.2.3 节），经行为去重与选库得到规则库（5.2.4 节）。规则库在 PPO 训练前固定，此后不再调用 LLM。
+
+\subsubsection{理论特征集}
+
+规则的排序依据限定为第3、4节已定义的量，使每个特征含义明确、可在线计算。表~\ref{tab:theory} 列出特征集，每个特征带有登记的排序方向。检查点级特征用于选择目标检查点，作业级与作业—检查点级特征用于对作业排序。
+
+\begin{table}[t]
+  \centering
+  \caption{理论特征集}\label{tab:theory}
+  \small
+  \begin{tabular}{@{}>{\raggedright}p{3.4cm}>{\raggedright}p{2.0cm}>{\raggedright}p{4.6cm}>{\raggedright\arraybackslash}p{3.8cm}@{}}
+    \toprule
+    特征 & 作用对象 & 定义 & 排序方向与来源 \\
+    \midrule
+    交期余量 & 作业 & $S^{d}_j=d_j-C^{\mathrm{LB}}_j$ & 升序；第4.1节 \\
+    检查点余量 & 作业—检查点 & $S^{C}_{jrk}=\tau_{rk}-C^{\mathrm{LB}}_j$ & 升序；第4.1节 \\
+    服务数量 & 作业 & $q_j$ & 降序；第3节 \\
+    单位工作量数量 & 作业 & $q_j/W_j$ & 降序 \\
+    剩余工作量 & 作业 & $W_j$ & 升序或降序；第4.3节 \\
+    预测数量不足 & 检查点 & $\Delta^{\mathrm{fc}}_{rk}$ & 降序；第4.2节 \\
+    加权缺口 & 检查点 & $w_{rk}G_{rkt}$ & 降序；第3、4.1节 \\
+    缺口率 & 检查点 & $G_{rkt}/(\tau_{rk}-t)$ & 降序 \\
+    检查点紧迫度 & 检查点 & $\tau_{rk}-t$ & 升序 \\
+    容量压力 & 检查点 & $\Delta^{\mathrm{cap}}_{rk}$ & 降序；第4.3节 \\
+    乐观及时贡献资格 & 作业—检查点 & $\chi^{Q}_{jrk}\in\{0,1\}$ & 过滤；第4.4节 \\
+    \bottomrule
+  \end{tabular}
+\end{table}
+
+数量类特征的引入基于如下观察。固定目标检查点 $(r,k)$ 后，交期余量与检查点余量的任意凸组合满足
+\begin{equation}\label{eq:blend}
+  \lambda\,S^{d}_j+(1-\lambda)\,S^{C}_{jrk}=\lambda\,d_j+(1-\lambda)\,\tau_{rk}-C^{\mathrm{LB}}_j .
+\end{equation}
+即仅含时间类特征的规则，其排序只取决于 $C^{\mathrm{LB}}_j$ 的偏移，行为多样性受限。服务数量与加权缺口使规则能够区分作业对检查点的贡献大小，与 WSF 的权重结构相对应。
+
+\subsubsection{规则表示与分类}
+
+每条规则由四部分构成：
+\begin{equation}\label{eq:rule}
+  H=\langle\mathrm{Target},\ \mathrm{Cond},\ \mathrm{Filter},\ \mathrm{Priority}\rangle .
+\end{equation}
+Target 在未结算且缺口为正的检查点中按一个检查点级特征选出目标检查点，或取空。Filter 为不过滤，或仅保留具有乐观及时贡献资格的作业。Priority 为作业排序。Cond 为恒真，或将目标检查点的状态量（预测数量不足比例、缺口比例、剩余时间比例）与阈值 $\{0.10,0.25,0.50\}$ 之一比较，以选择两个排序分支之一。所有规则以作业编号升序作为平局键。
+
+按适用范围，规则分为全局型（Target 取空，仅使用作业级特征）与检查点导向型（先选目标检查点，再在其上排序）。按排序结构，分为表~\ref{tab:taxonomy} 的四类。
+
+\begin{table}[t]
+  \centering
+  \caption{四类启发式规则}\label{tab:taxonomy}
+  \small
+  \begin{tabular}{@{}>{\raggedright}p{2.6cm}>{\raggedright}p{5.2cm}>{\raggedright\arraybackslash}p{6.4cm}@{}}
+    \toprule
+    类别 & 排序结构 & 示例 \\
+    \midrule
+    Ⅰ 简单优先规则 & 按单一特征的登记方向排序 & 交期余量升序；目标取预测数量不足最大的检查点，再按检查点余量升序 \\
+    Ⅱ 复合字典序规则 & 按 2--3 个不同特征依次比较 & 目标取加权缺口最大的检查点，按单位工作量数量降序，再按检查点余量升序 \\
+    Ⅲ 加权优先指数规则 & 若干归一化特征的加权和，权重之和为 1 & 目标取缺口率最大的检查点，按检查点余量、单位工作量数量、交期余量的 0.5/0.25/0.25 加权和升序 \\
+    Ⅳ 状态切换规则 & 目标检查点的状态量越过阈值时在两个 Ⅰ--Ⅲ 类排序间切换，仅限检查点导向型 & 目标取预测数量不足最大的检查点；其不足比例超过 0.25 时按服务数量降序，否则按交期余量升序 \\
+    \bottomrule
+  \end{tabular}
+\end{table}
+
+Ⅲ 类规则的评分为
+\begin{equation}\label{eq:score}
+  \mathrm{score}(j)=\sum_{h}\lambda_h\,\hat\Phi_h(j),\qquad \sum_h\lambda_h=1,\quad \lambda_h\in\{0.25,0.5,0.75\},
+\end{equation}
+其中 $\hat\Phi_h$ 为按登记方向定向、归一化并裁剪到 $[-1,1]$ 的特征值，评分越小越优先。当目标检查点不存在或其下无可派工作业时，规则按交期余量升序执行，称为缺省排序。规则的具体描述由 LLM 以结构化形式输出，由确定性解释器执行，格式见附录。
+
+\subsubsection{基于大语言模型的迭代规则生成}
+
+LLM 可作为启发式搜索中的候选生成器~\cite{romera2024funsearch,liu2024eoh}。本文利用其两方面能力：读取特征的数学含义，提出符合调度直觉的组合；读取已有规则的成绩与失效模式，对候选作定向修改。这是否优于随机采样或进化搜索，由第6节对照实验检验。
+
+算法~\ref{alg:gen} 给出生成流程。共进行 $N_{\mathrm{gen}}$ 轮，每轮 LLM 在 Ⅰ--Ⅳ 类之间按预设配额生成 $N_c$ 条候选，使规则结构保持多样。候选经合法性检验（解析、特征作用域与结构约束）后，在筛选实例集上仿真评价并行为去重，保留成绩最优的 $N_{\mathrm{elite}}$ 条作为精英，其结构、成绩（含 TT 与 WSF 分解）及去重信息汇总为反馈送入下一轮。生成结束后，在与筛选集、测试集均不相交的验证实例集上复核精英并选库。提示词、LLM 型号与采样参数见附录。
+
+\begin{algorithm}[t]
+  \caption{基于 LLM 的迭代规则生成与规则库构造}\label{alg:gen}
+  \begin{algorithmic}[1]
+    \Require 理论特征集；规则结构；筛选实例集 $\cI^{\mathrm{scr}}$；验证实例集 $\cI^{\mathrm{val}}$；$N_{\mathrm{gen}},N_c,N_{\mathrm{elite}},K$
+    \Ensure 规则库 $\cH$
+    \State 初始化精英集与反馈
+    \For{$g=1,\dots,N_{\mathrm{gen}}$}
+      \State LLM 依据特征集、规则结构、上轮反馈与类别配额生成 $N_c$ 条候选
+      \State 合法性检验，剔除不合法及结构重复的候选
+      \State 在 $\cI^{\mathrm{scr}}$ 上仿真，计算标准化目标 $f$
+      \State 行为去重，取 $f$ 最小的 $N_{\mathrm{elite}}$ 条更新精英集
+      \State 汇总本轮反馈
+    \EndFor
+    \State 在 $\cI^{\mathrm{val}}$ 上复核精英，按边际增益贪心选取至多 $K$ 条规则，得到 $\cH$
+  \end{algorithmic}
+\end{algorithm}
+
+全过程至多需要 $N_{\mathrm{gen}}N_c|\cI^{\mathrm{scr}}|$ 次仿真与 $N_{\mathrm{gen}}$ 次 LLM 调用，具体取值见第6节。
+
+\subsubsection{行为去重与规则库构建}
+
+结构不同的规则在实际决策中可能等价，例如两条规则在多数状态下选出同一作业。若让这类规则同时进入动作空间，会使 PPO 面对大量冗余动作。因此对候选规则做行为去重，并要求规则库内的规则在不同状态下互补。
+
+规则 $H$ 在实例 $I$ 上的目标值记为 $F_H(I)$，以缺省排序的目标值 $F_{0}(I)$ 为基准，其在实例集 $\cI'$ 上的标准化目标为
+\begin{equation}\label{eq:fi}
+  f_H(\cI')=\frac{1}{|\cI'|}\sum_{I\in\cI'}\frac{F_H(I)}{\max\{1,F_0(I)\}},
+\end{equation}
+$f_H<1$ 表示规则优于缺省排序。行为相似度在参考状态集 $\mathcal{S}$ 上度量，$\mathcal{S}$ 取自缺省排序在筛选实例上的轨迹中，存在目标检查点且可派工作业不少于 2 个的决策状态：
+\begin{equation}\label{eq:sim}
+  \mathrm{Sim}(H,H')=\frac{1}{|\mathcal{S}|}\sum_{s\in\mathcal{S}}\mathbf{1}\bigl[\mathrm{First}(s;H)=\mathrm{First}(s;H')\bigr],
+\end{equation}
+其中 $\mathrm{First}(s;H)$ 为规则 $H$ 在状态 $s$ 首选的作业。去重时按 $f_H$ 升序依次考察候选，仅当其与已保留规则的相似度均低于阈值时保留。
+
+选库在验证集上进行：先选入 $f_H$ 最小的规则，此后每次加入使``各验证实例上库内最优标准化目标的平均值''下降最多的规则，直至达到规模上限 $K$ 或下降量低于阈值。入选规则按 $f_H$ 升序编号，编号即 PPO 的动作索引。规则库的实际规模、类别分布与对照结果见第6节。
+
+%=====================================================================
+\subsection{基于真实目标增量的奖励}
+
+一次 PPO 决策对应一个至少启动一道工序的派工批次。若某事件后无可派工工序，环境仅推进事件并结算成本，不产生决策。为与目标 $F=\mathrm{TT}+\mathrm{WSF}$ 一致，奖励由真实的作业完成与检查点结算产生的成本构造。截至时刻 $t$ 已确认的累计成本为
+\begin{equation}\label{eq:cum}
+  F^{\cum}(t)=\sum_{j:\,C_j\le t}\max\{0,C_j-d_j\}+\sum_{r,k:\,\tau_{rk}\le t}w_{rk}\max\{0,Q_{rk}-Y_{r\tau_{rk}}\},
+\end{equation}
+其中 $Y_{r\tau_{rk}}$ 为第3节定义的检查点时刻实际完工数量；恰在 $\tau_{rk}$ 完工的作业先计入供给，再结算检查点。第 $n$ 次决策的奖励为
+\begin{equation}\label{eq:rew}
+  r_n=-\frac{F^{\cum}(t_{n+1})-F^{\cum}(t_n)}{F_{\mathrm{ref}}},
+\end{equation}
+其中 $t_{n+1}$ 为下一次决策时刻或回合终止时刻，$F_{\mathrm{ref}}$ 为训练前固定的参考尺度，取缺省排序在同一实例上的目标值 $F_0(I)$。奖励不折扣，因而一个回合的累计奖励等于目标 $F$ 的负增量除以 $F_{\mathrm{ref}}$，与评价指标一致；跨事件的延迟效应由 Critic 与优势估计处理。
+
+%=====================================================================
+\subsection{基于 HGT--PPO 的自适应启发式调度}
+
+\subsubsection{Actor--Critic 与批量派工}
+
+在决策时刻 $t_n$，状态向量 $z_n$ 输入 Actor 与 Critic，二者共享 HGT 编码器。Actor 输出规则库上的分类分布 $\pi_\theta(\cdot\mid z_n)$，Critic 输出状态价值 $V_\phi(z_n)$。仅当可派工作业集合
+\begin{equation}\label{eq:feas}
+  \cJ^{\mathrm{feas}}_n=\{\,j\ \text{已释放且未完成}:\ \text{其下一道工序已就绪，且存在空闲的合格机器}\,\}
+\end{equation}
+非空时才产生决策。
+
+策略选出规则 $H_{a_n}$ 后，在同一物理时刻按该规则连续派工：每次从 $\cJ^{\mathrm{feas}}_n$ 中按规则选出首个作业，在其下一道工序的空闲合格机器中取加工时间最短者（并列取编号最小），启动该工序并更新可派工集合，直至不存在合法的工序—机器组合。目标检查点与条件分支在批次开始时确定一次，批内不变。目标贡献候选耗尽时，按缺省排序继续派工，因此每个动作至少启动一道工序。批次结束后，环境按第3节的事件顺序推进到下一个决策状态。非延迟派工与固定的选机准则限定了可达的调度空间，学习集中于作业优先级的切换。
+
+\subsubsection{PPO 训练}
+
+训练采用 PPO~\cite{schulman2017ppo}。每个转移保存原始异构图观测、动作、采样时的动作概率与价值估计及奖励，使更新时共享 HGT 能够获得梯度。优势采用 GAE 估计~\cite{schulman2016gae}，折扣因子取 1，GAE 参数 $\lambda_{\mathrm{GAE}}$ 取值见第6节。设 $\rho_n(\theta)=\pi_\theta(a_n\mid\cG_n)/\pi_{\theta_{\mathrm{old}}}(a_n\mid\cG_n)$，$\hat A_n$ 为优势估计，$\hat R_n$ 为价值回归目标，联合目标为
+\begin{equation}\label{eq:loss}
+  \mathcal{L}(\theta,\phi)=-\mathbb{E}_n\Bigl[\min\bigl(\rho_n\hat A_n,\ \mathrm{clip}(\rho_n,1-\epsilon,1+\epsilon)\hat A_n\bigr)\Bigr]
+  +c_v\,\mathbb{E}_n\bigl[(V_\phi(\cG_n)-\hat R_n)^2\bigr]-c_e\,\mathbb{E}_n\bigl[\mathcal{H}(\pi_\theta)\bigr],
+\end{equation}
+其中 $\epsilon$、$c_v$、$c_e$ 分别为截断、价值损失与熵正则系数，$\mathcal{H}$ 为策略熵。每轮采样后固定旧策略，在同一批数据上做若干个更新轮次，再进入下一轮采样。评价阶段固定 HGT、Actor 与规则库。
+
+\subsubsection{完整求解流程}
+
+算法~\ref{alg:ppo} 给出与第3节事件语义一致的执行步骤。
+
+\begin{algorithm}[t]
+  \caption{HGT--PPO 事件驱动批量派工与训练}\label{alg:ppo}
+  \begin{algorithmic}[1]
+    \Require 规则库 $\cH$；动态实例及合法可见预测接口；HGT、Actor、Critic
+    \Ensure 派工序列与 $\mathrm{TT}$、$\mathrm{WSF}$、$F$；训练时的轨迹缓存
+    \State 初始化环境与事件队列，处理当前时刻的完工、到达、检查点结算与预测更新
+    \While{尚有作业未完成}
+      \If{$\cJ^{\mathrm{feas}}_n=\emptyset$}
+        \State 推进到下一事件并结算成本；\textbf{continue}
+      \EndIf
+      \State 构造 $\cG_n$，经 HGT 得到 $z_n$，由策略选择规则 $H_{a_n}$，记录动作概率与价值
+      \State 记录 $F^{\cum}(t_n)$
+      \While{存在合法的工序—机器组合}
+        \State 按 $H_{a_n}$ 选作业（候选耗尽时按缺省排序），取加工时间最短的空闲合格机器并启动工序
+      \EndWhile
+      \State 推进到下一决策状态或终止，结算成本，按式~\eqref{eq:rew} 计算奖励并保存转移
+      \State （训练）收集足够转移后计算优势与回报，按式~\eqref{eq:loss} 联合更新
+    \EndWhile
+    \State 返回派工序列与各项指标
+  \end{algorithmic}
+\end{algorithm}
+
+\begin{thebibliography}{9}
+\bibitem{hu2020hgt} Hu Z, Dong Y, Wang K, Sun Y. Heterogeneous graph transformer. In: Proc.\ WWW, 2020. 【请核对】
+\bibitem{romera2024funsearch} Romera-Paredes B, et al. Mathematical discoveries from program search with large language models. Nature, 2024. 【请核对】
+\bibitem{liu2024eoh} Liu F, et al. Evolution of heuristics: towards efficient automatic algorithm design using large language model. In: Proc.\ ICML, 2024. 【请核对】
+\bibitem{schulman2017ppo} Schulman J, et al. Proximal policy optimization algorithms. arXiv:1707.06347, 2017.
+\bibitem{schulman2016gae} Schulman J, et al. High-dimensional continuous control using generalized advantage estimation. In: Proc.\ ICLR, 2016.
+\end{thebibliography}
+
+\end{document}

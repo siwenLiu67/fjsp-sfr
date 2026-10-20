@@ -1,0 +1,22 @@
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.DS_Store
+._*
+
+# Local environments and secrets
+.env
+.env.*
+.venv/
+venv/
+
+# Generated experiment artifacts
+*.log
+*.pt
+
+# Editor and build artifacts
+.idea/
+.vscode/
+build/
+dist/
+*.egg-info/
