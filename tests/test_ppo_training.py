@@ -5,6 +5,7 @@ import torch
 
 from conftest import make_test_instance
 
+from fjsp_sfr.dispatch.classic_rules import build_classic_rule_library
 from fjsp_sfr.dispatch.rule_library import RuleLibrary
 from fjsp_sfr.dispatch.symbolic_rule import RuleType, SymbolicRule
 from fjsp_sfr.rl.graph import HeteroGraphData
@@ -233,6 +234,28 @@ class TestPPOTrainer:
 
     def test_collect_rollout(self, trainer):
         buffer, mean_reward = trainer.collect_rollout(num_episodes=1)
+        assert len(buffer) > 0
+        assert isinstance(mean_reward, float)
+
+    def test_collect_rollout_supports_classic_rules(self):
+        library = build_classic_rule_library()
+        agent = HGTPPOAgent(
+            action_size=library.action_size(),
+            hidden_dim=16,
+            num_layers=1,
+            num_heads=4,
+            job_input_dim=14,
+        )
+        trainer = PPOTrainer(
+            agent=agent,
+            library=library,
+            instances=[make_test_instance()],
+            epochs_per_update=1,
+            feature_set="theory11_plus3",
+        )
+
+        buffer, mean_reward = trainer.collect_rollout(num_episodes=1)
+
         assert len(buffer) > 0
         assert isinstance(mean_reward, float)
 

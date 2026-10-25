@@ -13,6 +13,7 @@ venv/
 # Generated experiment artifacts
 *.log
 *.pt
+llm_logs/
 
 # Editor and build artifacts
 .idea/

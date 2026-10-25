@@ -1,0 +1,25 @@
+{
+  "rules": [
+    {
+      "name": "Slack_Driven_SPT",
+      "expression": "due_date_slack - 0.5 * proc_time",
+      "rule_type": 1,
+      "priority_expr": "due_date_slack - 0.5 * proc_time",
+      "feature_set": "theory11_plus3"
+    },
+    {
+      "name": "Workload_Urgency_Index",
+      "expression": "0.5 * remaining_work + 0.3 * checkpoint_slack_urgency + 0.2 * capacity_pressure",
+      "rule_type": 3,
+      "priority_expr": "0.5 * remaining_work + 0.3 * checkpoint_slack_urgency + 0.2 * capacity_pressure",
+      "feature_set": "theory11_plus3"
+    },
+    {
+      "name": "Dynamic_Deficit_Priority",
+      "expression": "0.5 * forecast_deficit + 0.3 * gap_pressure + 0.2 * (1.0 - critical_ratio)",
+      "rule_type": 3,
+      "priority_expr": "0.5 * forecast_deficit + 0.3 * gap_pressure + 0.2 * (1.0 - critical_ratio)",
+      "feature_set": "theory11_plus3"
+    }
+  ]
+}

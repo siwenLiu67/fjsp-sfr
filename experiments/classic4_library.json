@@ -1,0 +1,8 @@
+{
+  "rules": [
+    {"kind": "classic", "name": "SPT", "classic_kind": "SPT", "atc_k": 2.0, "expression": "raw classic dispatch rule"},
+    {"kind": "classic", "name": "EDD", "classic_kind": "EDD", "atc_k": 2.0, "expression": "raw classic dispatch rule"},
+    {"kind": "classic", "name": "ATC_K2", "classic_kind": "ATC", "atc_k": 2.0, "expression": "raw classic dispatch rule"},
+    {"kind": "classic", "name": "MIN_SLACK", "classic_kind": "MIN_SLACK", "atc_k": 2.0, "expression": "raw classic dispatch rule"}
+  ]
+}

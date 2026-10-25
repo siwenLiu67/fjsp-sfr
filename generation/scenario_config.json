@@ -1,0 +1,46 @@
+{
+  "version": 1,
+  "fixed": {
+    "initial_jobs": 20,
+    "operations_per_job": [2, 5],
+    "processing_time": [1, 50],
+    "quantity": [1, 5]
+  },
+  "checkpoint": {
+    "tightness": 0.82,
+    "first_time_ratio": 0.55,
+    "first_demand_ratio": 0.48,
+    "commitment_ratio": 0.92,
+    "weights": [1.0, 3.0]
+  },
+  "scenarios": {
+    "center": {"machines": 10, "new_jobs": 50, "load": 0.80, "ddt": 1.0},
+    "l9_01": {"machines": 5, "new_jobs": 20, "load": 0.65, "ddt": 0.5},
+    "l9_02": {"machines": 5, "new_jobs": 50, "load": 0.80, "ddt": 1.0},
+    "l9_03": {"machines": 5, "new_jobs": 100, "load": 0.95, "ddt": 1.5},
+    "l9_04": {"machines": 10, "new_jobs": 20, "load": 0.80, "ddt": 1.5},
+    "l9_05": {"machines": 10, "new_jobs": 50, "load": 0.95, "ddt": 0.5},
+    "l9_06": {"machines": 10, "new_jobs": 100, "load": 0.65, "ddt": 1.0},
+    "l9_07": {"machines": 20, "new_jobs": 20, "load": 0.95, "ddt": 1.0},
+    "l9_08": {"machines": 20, "new_jobs": 50, "load": 0.65, "ddt": 1.5},
+    "l9_09": {"machines": 20, "new_jobs": 100, "load": 0.80, "ddt": 0.5}
+  },
+  "seeds": {
+    "training": [20000, 24999],
+    "validation_center": [25000, 25049],
+    "calibration_center": [25100, 25129],
+    "calibration_overview": [25400, 25409],
+    "selection_center": [25200, 25219],
+    "holdout_center": [25300, 25319],
+    "test_center": [26000, 26099],
+    "test_l9_01": [27000, 27049],
+    "test_l9_02": [27100, 27149],
+    "test_l9_03": [27200, 27249],
+    "test_l9_04": [27300, 27349],
+    "test_l9_05": [27400, 27449],
+    "test_l9_06": [27500, 27549],
+    "test_l9_07": [27600, 27649],
+    "test_l9_08": [27700, 27749],
+    "test_l9_09": [27800, 27849]
+  }
+}

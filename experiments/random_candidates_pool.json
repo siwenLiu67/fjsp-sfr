@@ -1,0 +1,1756 @@
+{
+  "schema_version": 1,
+  "tag": "random_pool",
+  "source": "random",
+  "completed_rounds": 1,
+  "candidate_total": 120,
+  "parsed_total": 120,
+  "reason_counts": {},
+  "random_seed": 20261023,
+  "feature_set": "theory11_plus3",
+  "candidates": [
+    {
+      "rule": {
+        "name": "random_t1_000",
+        "expression": "-remaining_work",
+        "rule_type": 1,
+        "priority_expr": "-remaining_work",
+        "feature_set": "theory11_plus3"
+      },
+      "source": "random",
+      "objective": 0.0,
+      "iteration": 0,
+      "total_tardiness": 0.0,
+      "weighted_service_shortfall": 0.0
+    },
+    {
+      "rule": {
+        "name": "random_t1_001",
+        "expression": "quantity_contribution",
+        "rule_type": 1,
+        "priority_expr": "quantity_contribution",
+        "feature_set": "theory11_plus3"
+      },
+      "source": "random",
+      "objective": 0.0,
+      "iteration": 0,
+      "total_tardiness": 0.0,
+      "weighted_service_shortfall": 0.0
+    },
+    {
+      "rule": {
+        "name": "random_t1_002",
+        "expression": "critical_ratio",
+        "rule_type": 1,
+        "priority_expr": "critical_ratio",
+        "feature_set": "theory11_plus3"
+      },
+      "source": "random",
+      "objective": 0.0,
+      "iteration": 0,
+      "total_tardiness": 0.0,
+      "weighted_service_shortfall": 0.0
+    },
+    {
+      "rule": {
+        "name": "random_t1_003",
+        "expression": "-quantity_contribution",
+        "rule_type": 1,
+        "priority_expr": "-quantity_contribution",
+        "filter_expr": "due_date_slack - 0.17",
+        "feature_set": "theory11_plus3"
+      },
+      "source": "random",
+      "objective": 0.0,
+      "iteration": 0,
+      "total_tardiness": 0.0,
+      "weighted_service_shortfall": 0.0
+    },
+    {
+      "rule": {
+        "name": "random_t1_004",
+        "expression": "-due_date_slack",
+        "rule_type": 1,
+        "priority_expr": "-due_date_slack",
+        "feature_set": "theory11_plus3"
+      },
+      "source": "random",
+      "objective": 0.0,
+      "iteration": 0,
+      "total_tardiness": 0.0,
+      "weighted_service_shortfall": 0.0
+    },
+    {
+      "rule": {
+        "name": "random_t1_005",
+        "expression": "checkpoint_slack_urgency",
+        "rule_type": 1,
+        "priority_expr": "checkpoint_slack_urgency",
+        "feature_set": "theory11_plus3"
+      },
+      "source": "random",
+      "objective": 0.0,
+      "iteration": 0,
+      "total_tardiness": 0.0,
+      "weighted_service_shortfall": 0.0
+    },
+    {
+      "rule": {
+        "name": "random_t1_006",
+        "expression": "-gap_pressure",
+        "rule_type": 1,
+        "priority_expr": "-gap_pressure",
+        "feature_set": "theory11_plus3"
+      },
+      "source": "random",
+      "objective": 0.0,
+      "iteration": 0,
+      "total_tardiness": 0.0,
+      "weighted_service_shortfall": 0.0
+    },
+    {
+      "rule": {
+        "name": "random_t1_007",
+        "expression": "tardiness_exposure",
+        "rule_type": 1,
+        "priority_expr": "tardiness_exposure",
+        "feature_set": "theory11_plus3"
+      },
+      "source": "random",
+      "objective": 0.0,
+      "iteration": 0,
+      "total_tardiness": 0.0,
+      "weighted_service_shortfall": 0.0
+    },
+    {
+      "rule": {
+        "name": "random_t1_008",
+        "expression": "critical_ratio",
+        "rule_type": 1,
+        "priority_expr": "critical_ratio",
+        "filter_expr": "tardiness_exposure - 0.15",
+        "feature_set": "theory11_plus3"
+      },
+      "source": "random",
+      "objective": 0.0,
+      "iteration": 0,
+      "total_tardiness": 0.0,
+      "weighted_service_shortfall": 0.0
+    },
+    {
+      "rule": {
+        "name": "random_t1_009",
+        "expression": "proc_time",
+        "rule_type": 1,
+        "priority_expr": "proc_time",
+        "feature_set": "theory11_plus3"
+      },
+      "source": "random",
+      "objective": 0.0,
+      "iteration": 0,
+      "total_tardiness": 0.0,
+      "weighted_service_shortfall": 0.0
+    },
+    {
+      "rule": {
+        "name": "random_t1_010",
+        "expression": "capacity_flag",
+        "rule_type": 1,
+        "priority_expr": "capacity_flag",
+        "feature_set": "theory11_plus3"
+      },
+      "source": "random",
+      "objective": 0.0,
+      "iteration": 0,
+      "total_tardiness": 0.0,
+      "weighted_service_shortfall": 0.0
+    },
+    {
+      "rule": {
+        "name": "random_t1_011",
+        "expression": "-processing_ratio",
+        "rule_type": 1,
+        "priority_expr": "-processing_ratio",
+        "feature_set": "theory11_plus3"
+      },
+      "source": "random",
+      "objective": 0.0,
+      "iteration": 0,
+      "total_tardiness": 0.0,
+      "weighted_service_shortfall": 0.0
+    },
+    {
+      "rule": {
+        "name": "random_t1_012",
+        "expression": "-tardiness_exposure",
+        "rule_type": 1,
+        "priority_expr": "-tardiness_exposure",
+        "feature_set": "theory11_plus3"
+      },
+      "source": "random",
+      "objective": 0.0,
+      "iteration": 0,
+      "total_tardiness": 0.0,
+      "weighted_service_shortfall": 0.0
+    },
+    {
+      "rule": {
+        "name": "random_t1_013",
+        "expression": "critical_ratio",
+        "rule_type": 1,
+        "priority_expr": "critical_ratio",
+        "filter_expr": "forecast_deficit - 0.42",
+        "feature_set": "theory11_plus3"
+      },
+      "source": "random",
+      "objective": 0.0,
+      "iteration": 0,
+      "total_tardiness": 0.0,
+      "weighted_service_shortfall": 0.0
+    },
+    {
+      "rule": {
+        "name": "random_t1_014",
+        "expression": "-capacity_flag",
+        "rule_type": 1,
+        "priority_expr": "-capacity_flag",
+        "filter_expr": "proc_time - 0.07",
+        "feature_set": "theory11_plus3"
+      },
+      "source": "random",
+      "objective": 0.0,
+      "iteration": 0,
+      "total_tardiness": 0.0,
+      "weighted_service_shortfall": 0.0
+    },
+    {
+      "rule": {
+        "name": "random_t1_015",
+        "expression": "processing_ratio",
+        "rule_type": 1,
+        "priority_expr": "processing_ratio",
+        "feature_set": "theory11_plus3"
+      },
+      "source": "random",
+      "objective": 0.0,
+      "iteration": 0,
+      "total_tardiness": 0.0,
+      "weighted_service_shortfall": 0.0
+    },
+    {
+      "rule": {
+        "name": "random_t1_016",
+        "expression": "capacity_pressure",
+        "rule_type": 1,
+        "priority_expr": "capacity_pressure",
+        "feature_set": "theory11_plus3"
+      },
+      "source": "random",
+      "objective": 0.0,
+      "iteration": 0,
+      "total_tardiness": 0.0,
+      "weighted_service_shortfall": 0.0
+    },
+    {
+      "rule": {
+        "name": "random_t1_017",
+        "expression": "-checkpoint_slack_urgency",
+        "rule_type": 1,
+        "priority_expr": "-checkpoint_slack_urgency",
+        "filter_expr": "checkpoint_slack_urgency - 0.31",
+        "feature_set": "theory11_plus3"
+      },
+      "source": "random",
+      "objective": 0.0,
+      "iteration": 0,
+      "total_tardiness": 0.0,
+      "weighted_service_shortfall": 0.0
+    },
+    {
+      "rule": {
+        "name": "random_t1_018",
+        "expression": "-multi_checkpoint_value",
+        "rule_type": 1,
+        "priority_expr": "-multi_checkpoint_value",
+        "filter_expr": "quantity_contribution - 0.28",
+        "feature_set": "theory11_plus3"
+      },
+      "source": "random",
+      "objective": 0.0,
+      "iteration": 0,
+      "total_tardiness": 0.0,
+      "weighted_service_shortfall": 0.0
+    },
+    {
+      "rule": {
+        "name": "random_t1_019",
+        "expression": "-remaining_work",
+        "rule_type": 1,
+        "priority_expr": "-remaining_work",
+        "filter_expr": "proc_time - 0.11",
+        "feature_set": "theory11_plus3"
+      },
+      "source": "random",
+      "objective": 0.0,
+      "iteration": 0,
+      "total_tardiness": 0.0,
+      "weighted_service_shortfall": 0.0
+    },
+    {
+      "rule": {
+        "name": "random_t1_020",
+        "expression": "checkpoint_slack_urgency",
+        "rule_type": 1,
+        "priority_expr": "checkpoint_slack_urgency",
+        "filter_expr": "remaining_work - 0.14",
+        "feature_set": "theory11_plus3"
+      },
+      "source": "random",
+      "objective": 0.0,
+      "iteration": 0,
+      "total_tardiness": 0.0,
+      "weighted_service_shortfall": 0.0
+    },
+    {
+      "rule": {
+        "name": "random_t1_021",
+        "expression": "gap_pressure",
+        "rule_type": 1,
+        "priority_expr": "gap_pressure",
+        "feature_set": "theory11_plus3"
+      },
+      "source": "random",
+      "objective": 0.0,
+      "iteration": 0,
+      "total_tardiness": 0.0,
+      "weighted_service_shortfall": 0.0
+    },
+    {
+      "rule": {
+        "name": "random_t1_022",
+        "expression": "tardiness_exposure",
+        "rule_type": 1,
+        "priority_expr": "tardiness_exposure",
+        "filter_expr": "remaining_work - 0.25",
+        "feature_set": "theory11_plus3"
+      },
+      "source": "random",
+      "objective": 0.0,
+      "iteration": 0,
+      "total_tardiness": 0.0,
+      "weighted_service_shortfall": 0.0
+    },
+    {
+      "rule": {
+        "name": "random_t1_023",
+        "expression": "remaining_work",
+        "rule_type": 1,
+        "priority_expr": "remaining_work",
+        "feature_set": "theory11_plus3"
+      },
+      "source": "random",
+      "objective": 0.0,
+      "iteration": 0,
+      "total_tardiness": 0.0,
+      "weighted_service_shortfall": 0.0
+    },
+    {
+      "rule": {
+        "name": "random_t1_024",
+        "expression": "-quantity_contribution",
+        "rule_type": 1,
+        "priority_expr": "-quantity_contribution",
+        "feature_set": "theory11_plus3"
+      },
+      "source": "random",
+      "objective": 0.0,
+      "iteration": 0,
+      "total_tardiness": 0.0,
+      "weighted_service_shortfall": 0.0
+    },
+    {
+      "rule": {
+        "name": "random_t1_025",
+        "expression": "forecast_deficit",
+        "rule_type": 1,
+        "priority_expr": "forecast_deficit",
+        "feature_set": "theory11_plus3"
+      },
+      "source": "random",
+      "objective": 0.0,
+      "iteration": 0,
+      "total_tardiness": 0.0,
+      "weighted_service_shortfall": 0.0
+    },
+    {
+      "rule": {
+        "name": "random_t1_026",
+        "expression": "-checkpoint_slack_urgency",
+        "rule_type": 1,
+        "priority_expr": "-checkpoint_slack_urgency",
+        "filter_expr": "due_date_slack - 0.33",
+        "feature_set": "theory11_plus3"
+      },
+      "source": "random",
+      "objective": 0.0,
+      "iteration": 0,
+      "total_tardiness": 0.0,
+      "weighted_service_shortfall": 0.0
+    },
+    {
+      "rule": {
+        "name": "random_t1_027",
+        "expression": "multi_checkpoint_value",
+        "rule_type": 1,
+        "priority_expr": "multi_checkpoint_value",
+        "feature_set": "theory11_plus3"
+      },
+      "source": "random",
+      "objective": 0.0,
+      "iteration": 0,
+      "total_tardiness": 0.0,
+      "weighted_service_shortfall": 0.0
+    },
+    {
+      "rule": {
+        "name": "random_t1_028",
+        "expression": "-proc_time",
+        "rule_type": 1,
+        "priority_expr": "-proc_time",
+        "feature_set": "theory11_plus3"
+      },
+      "source": "random",
+      "objective": 0.0,
+      "iteration": 0,
+      "total_tardiness": 0.0,
+      "weighted_service_shortfall": 0.0
+    },
+    {
+      "rule": {
+        "name": "random_t1_029",
+        "expression": "-remaining_work",
+        "rule_type": 1,
+        "priority_expr": "-remaining_work",
+        "filter_expr": "forecast_deficit - 0.14",
+        "feature_set": "theory11_plus3"
+      },
+      "source": "random",
+      "objective": 0.0,
+      "iteration": 0,
+      "total_tardiness": 0.0,
+      "weighted_service_shortfall": 0.0
+    },
+    {
+      "rule": {
+        "name": "random_t2_000",
+        "expression": "remaining_work - 0.31 * gap_pressure",
+        "rule_type": 2,
+        "priority_expr": "remaining_work - 0.31 * gap_pressure",
+        "filter_expr": "capacity_pressure - 0.39",
+        "feature_set": "theory11_plus3"
+      },
+      "source": "random",
+      "objective": 0.0,
+      "iteration": 0,
+      "total_tardiness": 0.0,
+      "weighted_service_shortfall": 0.0
+    },
+    {
+      "rule": {
+        "name": "random_t2_001",
+        "expression": "proc_time - 0.25 * remaining_work",
+        "rule_type": 2,
+        "priority_expr": "proc_time - 0.25 * remaining_work",
+        "feature_set": "theory11_plus3"
+      },
+      "source": "random",
+      "objective": 0.0,
+      "iteration": 0,
+      "total_tardiness": 0.0,
+      "weighted_service_shortfall": 0.0
+    },
+    {
+      "rule": {
+        "name": "random_t2_002",
+        "expression": "due_date_slack + 0.16 * capacity_flag",
+        "rule_type": 2,
+        "priority_expr": "due_date_slack + 0.16 * capacity_flag",
+        "feature_set": "theory11_plus3"
+      },
+      "source": "random",
+      "objective": 0.0,
+      "iteration": 0,
+      "total_tardiness": 0.0,
+      "weighted_service_shortfall": 0.0
+    },
+    {
+      "rule": {
+        "name": "random_t2_003",
+        "expression": "critical_ratio + 0.30 * capacity_flag - 0.17 * quantity_contribution",
+        "rule_type": 2,
+        "priority_expr": "critical_ratio + 0.30 * capacity_flag - 0.17 * quantity_contribution",
+        "feature_set": "theory11_plus3"
+      },
+      "source": "random",
+      "objective": 0.0,
+      "iteration": 0,
+      "total_tardiness": 0.0,
+      "weighted_service_shortfall": 0.0
+    },
+    {
+      "rule": {
+        "name": "random_t2_004",
+        "expression": "forecast_flag + 0.19 * capacity_pressure",
+        "rule_type": 2,
+        "priority_expr": "forecast_flag + 0.19 * capacity_pressure",
+        "feature_set": "theory11_plus3"
+      },
+      "source": "random",
+      "objective": 0.0,
+      "iteration": 0,
+      "total_tardiness": 0.0,
+      "weighted_service_shortfall": 0.0
+    },
+    {
+      "rule": {
+        "name": "random_t2_005",
+        "expression": "remaining_work - 0.20 * multi_checkpoint_value",
+        "rule_type": 2,
+        "priority_expr": "remaining_work - 0.20 * multi_checkpoint_value",
+        "feature_set": "theory11_plus3"
+      },
+      "source": "random",
+      "objective": 0.0,
+      "iteration": 0,
+      "total_tardiness": 0.0,
+      "weighted_service_shortfall": 0.0
+    },
+    {
+      "rule": {
+        "name": "random_t2_006",
+        "expression": "remaining_work + 0.28 * checkpoint_slack_urgency - 0.28 * due_date_slack",
+        "rule_type": 2,
+        "priority_expr": "remaining_work + 0.28 * checkpoint_slack_urgency - 0.28 * due_date_slack",
+        "feature_set": "theory11_plus3"
+      },
+      "source": "random",
+      "objective": 0.0,
+      "iteration": 0,
+      "total_tardiness": 0.0,
+      "weighted_service_shortfall": 0.0
+    },
+    {
+      "rule": {
+        "name": "random_t2_007",
+        "expression": "due_date_slack - 0.18 * quantity_contribution",
+        "rule_type": 2,
+        "priority_expr": "due_date_slack - 0.18 * quantity_contribution",
+        "feature_set": "theory11_plus3"
+      },
+      "source": "random",
+      "objective": 0.0,
+      "iteration": 0,
+      "total_tardiness": 0.0,
+      "weighted_service_shortfall": 0.0
+    },
+    {
+      "rule": {
+        "name": "random_t2_008",
+        "expression": "gap_pressure + 0.45 * critical_ratio + 0.44 * checkpoint_slack_urgency",
+        "rule_type": 2,
+        "priority_expr": "gap_pressure + 0.45 * critical_ratio + 0.44 * checkpoint_slack_urgency",
+        "feature_set": "theory11_plus3"
+      },
+      "source": "random",
+      "objective": 0.0,
+      "iteration": 0,
+      "total_tardiness": 0.0,
+      "weighted_service_shortfall": 0.0
+    },
+    {
+      "rule": {
+        "name": "random_t2_009",
+        "expression": "tardiness_exposure - 0.17 * due_date_slack + 0.40 * capacity_pressure",
+        "rule_type": 2,
+        "priority_expr": "tardiness_exposure - 0.17 * due_date_slack + 0.40 * capacity_pressure",
+        "feature_set": "theory11_plus3"
+      },
+      "source": "random",
+      "objective": 0.0,
+      "iteration": 0,
+      "total_tardiness": 0.0,
+      "weighted_service_shortfall": 0.0
+    },
+    {
+      "rule": {
+        "name": "random_t2_010",
+        "expression": "capacity_pressure + 0.19 * forecast_deficit + 0.07 * quantity_contribution",
+        "rule_type": 2,
+        "priority_expr": "capacity_pressure + 0.19 * forecast_deficit + 0.07 * quantity_contribution",
+        "feature_set": "theory11_plus3"
+      },
+      "source": "random",
+      "objective": 0.0,
+      "iteration": 0,
+      "total_tardiness": 0.0,
+      "weighted_service_shortfall": 0.0
+    },
+    {
+      "rule": {
+        "name": "random_t2_011",
+        "expression": "critical_ratio + 0.17 * forecast_flag + 0.10 * multi_checkpoint_value",
+        "rule_type": 2,
+        "priority_expr": "critical_ratio + 0.17 * forecast_flag + 0.10 * multi_checkpoint_value",
+        "feature_set": "theory11_plus3"
+      },
+      "source": "random",
+      "objective": 0.0,
+      "iteration": 0,
+      "total_tardiness": 0.0,
+      "weighted_service_shortfall": 0.0
+    },
+    {
+      "rule": {
+        "name": "random_t2_012",
+        "expression": "forecast_flag + 0.43 * tardiness_exposure - 0.32 * capacity_flag",
+        "rule_type": 2,
+        "priority_expr": "forecast_flag + 0.43 * tardiness_exposure - 0.32 * capacity_flag",
+        "filter_expr": "proc_time - 0.09",
+        "feature_set": "theory11_plus3"
+      },
+      "source": "random",
+      "objective": 0.0,
+      "iteration": 0,
+      "total_tardiness": 0.0,
+      "weighted_service_shortfall": 0.0
+    },
+    {
+      "rule": {
+        "name": "random_t2_013",
+        "expression": "forecast_deficit + 0.23 * capacity_pressure",
+        "rule_type": 2,
+        "priority_expr": "forecast_deficit + 0.23 * capacity_pressure",
+        "feature_set": "theory11_plus3"
+      },
+      "source": "random",
+      "objective": 0.0,
+      "iteration": 0,
+      "total_tardiness": 0.0,
+      "weighted_service_shortfall": 0.0
+    },
+    {
+      "rule": {
+        "name": "random_t2_014",
+        "expression": "forecast_flag - 0.10 * critical_ratio + 0.34 * capacity_flag",
+        "rule_type": 2,
+        "priority_expr": "forecast_flag - 0.10 * critical_ratio + 0.34 * capacity_flag",
+        "filter_expr": "gap_pressure - 0.44",
+        "feature_set": "theory11_plus3"
+      },
+      "source": "random",
+      "objective": 0.0,
+      "iteration": 0,
+      "total_tardiness": 0.0,
+      "weighted_service_shortfall": 0.0
+    },
+    {
+      "rule": {
+        "name": "random_t2_015",
+        "expression": "tardiness_exposure - 0.20 * critical_ratio",
+        "rule_type": 2,
+        "priority_expr": "tardiness_exposure - 0.20 * critical_ratio",
+        "feature_set": "theory11_plus3"
+      },
+      "source": "random",
+      "objective": 0.0,
+      "iteration": 0,
+      "total_tardiness": 0.0,
+      "weighted_service_shortfall": 0.0
+    },
+    {
+      "rule": {
+        "name": "random_t2_016",
+        "expression": "forecast_flag - 0.39 * remaining_work",
+        "rule_type": 2,
+        "priority_expr": "forecast_flag - 0.39 * remaining_work",
+        "feature_set": "theory11_plus3"
+      },
+      "source": "random",
+      "objective": 0.0,
+      "iteration": 0,
+      "total_tardiness": 0.0,
+      "weighted_service_shortfall": 0.0
+    },
+    {
+      "rule": {
+        "name": "random_t2_017",
+        "expression": "capacity_flag - 0.33 * tardiness_exposure",
+        "rule_type": 2,
+        "priority_expr": "capacity_flag - 0.33 * tardiness_exposure",
+        "filter_expr": "forecast_deficit - 0.12",
+        "feature_set": "theory11_plus3"
+      },
+      "source": "random",
+      "objective": 0.0,
+      "iteration": 0,
+      "total_tardiness": 0.0,
+      "weighted_service_shortfall": 0.0
+    },
+    {
+      "rule": {
+        "name": "random_t2_018",
+        "expression": "due_date_slack + 0.15 * proc_time + 0.44 * tardiness_exposure",
+        "rule_type": 2,
+        "priority_expr": "due_date_slack + 0.15 * proc_time + 0.44 * tardiness_exposure",
+        "filter_expr": "quantity_contribution - 0.42",
+        "feature_set": "theory11_plus3"
+      },
+      "source": "random",
+      "objective": 0.0,
+      "iteration": 0,
+      "total_tardiness": 0.0,
+      "weighted_service_shortfall": 0.0
+    },
+    {
+      "rule": {
+        "name": "random_t2_019",
+        "expression": "tardiness_exposure - 0.06 * multi_checkpoint_value + 0.22 * critical_ratio",
+        "rule_type": 2,
+        "priority_expr": "tardiness_exposure - 0.06 * multi_checkpoint_value + 0.22 * critical_ratio",
+        "feature_set": "theory11_plus3"
+      },
+      "source": "random",
+      "objective": 0.0,
+      "iteration": 0,
+      "total_tardiness": 0.0,
+      "weighted_service_shortfall": 0.0
+    },
+    {
+      "rule": {
+        "name": "random_t2_020",
+        "expression": "quantity_contribution - 0.13 * due_date_slack - 0.44 * gap_pressure",
+        "rule_type": 2,
+        "priority_expr": "quantity_contribution - 0.13 * due_date_slack - 0.44 * gap_pressure",
+        "feature_set": "theory11_plus3"
+      },
+      "source": "random",
+      "objective": 0.0,
+      "iteration": 0,
+      "total_tardiness": 0.0,
+      "weighted_service_shortfall": 0.0
+    },
+    {
+      "rule": {
+        "name": "random_t2_021",
+        "expression": "remaining_work - 0.24 * proc_time",
+        "rule_type": 2,
+        "priority_expr": "remaining_work - 0.24 * proc_time",
+        "feature_set": "theory11_plus3"
+      },
+      "source": "random",
+      "objective": 0.0,
+      "iteration": 0,
+      "total_tardiness": 0.0,
+      "weighted_service_shortfall": 0.0
+    },
+    {
+      "rule": {
+        "name": "random_t2_022",
+        "expression": "capacity_flag - 0.41 * forecast_deficit",
+        "rule_type": 2,
+        "priority_expr": "capacity_flag - 0.41 * forecast_deficit",
+        "feature_set": "theory11_plus3"
+      },
+      "source": "random",
+      "objective": 0.0,
+      "iteration": 0,
+      "total_tardiness": 0.0,
+      "weighted_service_shortfall": 0.0
+    },
+    {
+      "rule": {
+        "name": "random_t2_023",
+        "expression": "multi_checkpoint_value + 0.17 * checkpoint_slack_urgency",
+        "rule_type": 2,
+        "priority_expr": "multi_checkpoint_value + 0.17 * checkpoint_slack_urgency",
+        "feature_set": "theory11_plus3"
+      },
+      "source": "random",
+      "objective": 0.0,
+      "iteration": 0,
+      "total_tardiness": 0.0,
+      "weighted_service_shortfall": 0.0
+    },
+    {
+      "rule": {
+        "name": "random_t2_024",
+        "expression": "due_date_slack + 0.29 * quantity_contribution",
+        "rule_type": 2,
+        "priority_expr": "due_date_slack + 0.29 * quantity_contribution",
+        "filter_expr": "proc_time - 0.40",
+        "feature_set": "theory11_plus3"
+      },
+      "source": "random",
+      "objective": 0.0,
+      "iteration": 0,
+      "total_tardiness": 0.0,
+      "weighted_service_shortfall": 0.0
+    },
+    {
+      "rule": {
+        "name": "random_t2_025",
+        "expression": "multi_checkpoint_value + 0.24 * forecast_deficit - 0.33 * critical_ratio",
+        "rule_type": 2,
+        "priority_expr": "multi_checkpoint_value + 0.24 * forecast_deficit - 0.33 * critical_ratio",
+        "feature_set": "theory11_plus3"
+      },
+      "source": "random",
+      "objective": 0.0,
+      "iteration": 0,
+      "total_tardiness": 0.0,
+      "weighted_service_shortfall": 0.0
+    },
+    {
+      "rule": {
+        "name": "random_t2_026",
+        "expression": "quantity_contribution - 0.16 * capacity_flag - 0.44 * remaining_work",
+        "rule_type": 2,
+        "priority_expr": "quantity_contribution - 0.16 * capacity_flag - 0.44 * remaining_work",
+        "feature_set": "theory11_plus3"
+      },
+      "source": "random",
+      "objective": 0.0,
+      "iteration": 0,
+      "total_tardiness": 0.0,
+      "weighted_service_shortfall": 0.0
+    },
+    {
+      "rule": {
+        "name": "random_t2_027",
+        "expression": "due_date_slack - 0.09 * multi_checkpoint_value + 0.41 * checkpoint_slack_urgency",
+        "rule_type": 2,
+        "priority_expr": "due_date_slack - 0.09 * multi_checkpoint_value + 0.41 * checkpoint_slack_urgency",
+        "filter_expr": "checkpoint_slack_urgency - 0.11",
+        "feature_set": "theory11_plus3"
+      },
+      "source": "random",
+      "objective": 0.0,
+      "iteration": 0,
+      "total_tardiness": 0.0,
+      "weighted_service_shortfall": 0.0
+    },
+    {
+      "rule": {
+        "name": "random_t2_028",
+        "expression": "capacity_flag + 0.17 * capacity_pressure - 0.13 * forecast_flag",
+        "rule_type": 2,
+        "priority_expr": "capacity_flag + 0.17 * capacity_pressure - 0.13 * forecast_flag",
+        "feature_set": "theory11_plus3"
+      },
+      "source": "random",
+      "objective": 0.0,
+      "iteration": 0,
+      "total_tardiness": 0.0,
+      "weighted_service_shortfall": 0.0
+    },
+    {
+      "rule": {
+        "name": "random_t2_029",
+        "expression": "forecast_flag + 0.45 * checkpoint_slack_urgency",
+        "rule_type": 2,
+        "priority_expr": "forecast_flag + 0.45 * checkpoint_slack_urgency",
+        "filter_expr": "gap_pressure - 0.14",
+        "feature_set": "theory11_plus3"
+      },
+      "source": "random",
+      "objective": 0.0,
+      "iteration": 0,
+      "total_tardiness": 0.0,
+      "weighted_service_shortfall": 0.0
+    },
+    {
+      "rule": {
+        "name": "random_t3_000",
+        "expression": "0.320 * processing_ratio + 0.253 * forecast_flag + 0.272 * critical_ratio + 0.155 * forecast_deficit",
+        "rule_type": 3,
+        "priority_expr": "0.320 * processing_ratio + 0.253 * forecast_flag + 0.272 * critical_ratio + 0.155 * forecast_deficit",
+        "feature_set": "theory11_plus3"
+      },
+      "source": "random",
+      "objective": 0.0,
+      "iteration": 0,
+      "total_tardiness": 0.0,
+      "weighted_service_shortfall": 0.0
+    },
+    {
+      "rule": {
+        "name": "random_t3_001",
+        "expression": "0.204 * capacity_flag + 0.113 * critical_ratio + 0.248 * proc_time + 0.223 * forecast_flag + 0.212 * forecast_deficit",
+        "rule_type": 3,
+        "priority_expr": "0.204 * capacity_flag + 0.113 * critical_ratio + 0.248 * proc_time + 0.223 * forecast_flag + 0.212 * forecast_deficit",
+        "filter_expr": "capacity_pressure - 0.32",
+        "feature_set": "theory11_plus3"
+      },
+      "source": "random",
+      "objective": 0.0,
+      "iteration": 0,
+      "total_tardiness": 0.0,
+      "weighted_service_shortfall": 0.0
+    },
+    {
+      "rule": {
+        "name": "random_t3_002",
+        "expression": "0.109 * due_date_slack + 0.217 * quantity_contribution + 0.263 * capacity_pressure + 0.410 * forecast_deficit",
+        "rule_type": 3,
+        "priority_expr": "0.109 * due_date_slack + 0.217 * quantity_contribution + 0.263 * capacity_pressure + 0.410 * forecast_deficit",
+        "feature_set": "theory11_plus3"
+      },
+      "source": "random",
+      "objective": 0.0,
+      "iteration": 0,
+      "total_tardiness": 0.0,
+      "weighted_service_shortfall": 0.0
+    },
+    {
+      "rule": {
+        "name": "random_t3_003",
+        "expression": "0.314 * checkpoint_slack_urgency + 0.362 * forecast_deficit + 0.324 * proc_time",
+        "rule_type": 3,
+        "priority_expr": "0.314 * checkpoint_slack_urgency + 0.362 * forecast_deficit + 0.324 * proc_time",
+        "filter_expr": "forecast_deficit - 0.19",
+        "feature_set": "theory11_plus3"
+      },
+      "source": "random",
+      "objective": 0.0,
+      "iteration": 0,
+      "total_tardiness": 0.0,
+      "weighted_service_shortfall": 0.0
+    },
+    {
+      "rule": {
+        "name": "random_t3_004",
+        "expression": "0.252 * checkpoint_slack_urgency + 0.524 * gap_pressure + 0.224 * capacity_pressure",
+        "rule_type": 3,
+        "priority_expr": "0.252 * checkpoint_slack_urgency + 0.524 * gap_pressure + 0.224 * capacity_pressure",
+        "feature_set": "theory11_plus3"
+      },
+      "source": "random",
+      "objective": 0.0,
+      "iteration": 0,
+      "total_tardiness": 0.0,
+      "weighted_service_shortfall": 0.0
+    },
+    {
+      "rule": {
+        "name": "random_t3_005",
+        "expression": "0.151 * due_date_slack + 0.495 * capacity_pressure + 0.354 * proc_time",
+        "rule_type": 3,
+        "priority_expr": "0.151 * due_date_slack + 0.495 * capacity_pressure + 0.354 * proc_time",
+        "feature_set": "theory11_plus3"
+      },
+      "source": "random",
+      "objective": 0.0,
+      "iteration": 0,
+      "total_tardiness": 0.0,
+      "weighted_service_shortfall": 0.0
+    },
+    {
+      "rule": {
+        "name": "random_t3_006",
+        "expression": "0.252 * capacity_flag + 0.183 * gap_pressure + 0.122 * proc_time + 0.107 * forecast_flag + 0.336 * multi_checkpoint_value",
+        "rule_type": 3,
+        "priority_expr": "0.252 * capacity_flag + 0.183 * gap_pressure + 0.122 * proc_time + 0.107 * forecast_flag + 0.336 * multi_checkpoint_value",
+        "feature_set": "theory11_plus3"
+      },
+      "source": "random",
+      "objective": 0.0,
+      "iteration": 0,
+      "total_tardiness": 0.0,
+      "weighted_service_shortfall": 0.0
+    },
+    {
+      "rule": {
+        "name": "random_t3_007",
+        "expression": "0.119 * proc_time + 0.304 * processing_ratio + 0.252 * capacity_flag + 0.135 * remaining_work + 0.190 * checkpoint_slack_urgency",
+        "rule_type": 3,
+        "priority_expr": "0.119 * proc_time + 0.304 * processing_ratio + 0.252 * capacity_flag + 0.135 * remaining_work + 0.190 * checkpoint_slack_urgency",
+        "feature_set": "theory11_plus3"
+      },
+      "source": "random",
+      "objective": 0.0,
+      "iteration": 0,
+      "total_tardiness": 0.0,
+      "weighted_service_shortfall": 0.0
+    },
+    {
+      "rule": {
+        "name": "random_t3_008",
+        "expression": "0.203 * quantity_contribution + 0.358 * critical_ratio + 0.101 * due_date_slack + 0.338 * capacity_pressure",
+        "rule_type": 3,
+        "priority_expr": "0.203 * quantity_contribution + 0.358 * critical_ratio + 0.101 * due_date_slack + 0.338 * capacity_pressure",
+        "feature_set": "theory11_plus3"
+      },
+      "source": "random",
+      "objective": 0.0,
+      "iteration": 0,
+      "total_tardiness": 0.0,
+      "weighted_service_shortfall": 0.0
+    },
+    {
+      "rule": {
+        "name": "random_t3_009",
+        "expression": "0.097 * proc_time + 0.544 * processing_ratio + 0.239 * due_date_slack + 0.119 * critical_ratio",
+        "rule_type": 3,
+        "priority_expr": "0.097 * proc_time + 0.544 * processing_ratio + 0.239 * due_date_slack + 0.119 * critical_ratio",
+        "feature_set": "theory11_plus3"
+      },
+      "source": "random",
+      "objective": 0.0,
+      "iteration": 0,
+      "total_tardiness": 0.0,
+      "weighted_service_shortfall": 0.0
+    },
+    {
+      "rule": {
+        "name": "random_t3_010",
+        "expression": "0.180 * forecast_deficit + 0.225 * gap_pressure + 0.127 * due_date_slack + 0.205 * capacity_flag + 0.264 * proc_time",
+        "rule_type": 3,
+        "priority_expr": "0.180 * forecast_deficit + 0.225 * gap_pressure + 0.127 * due_date_slack + 0.205 * capacity_flag + 0.264 * proc_time",
+        "feature_set": "theory11_plus3"
+      },
+      "source": "random",
+      "objective": 0.0,
+      "iteration": 0,
+      "total_tardiness": 0.0,
+      "weighted_service_shortfall": 0.0
+    },
+    {
+      "rule": {
+        "name": "random_t3_011",
+        "expression": "0.459 * proc_time + 0.255 * forecast_flag + 0.286 * critical_ratio",
+        "rule_type": 3,
+        "priority_expr": "0.459 * proc_time + 0.255 * forecast_flag + 0.286 * critical_ratio",
+        "feature_set": "theory11_plus3"
+      },
+      "source": "random",
+      "objective": 0.0,
+      "iteration": 0,
+      "total_tardiness": 0.0,
+      "weighted_service_shortfall": 0.0
+    },
+    {
+      "rule": {
+        "name": "random_t3_012",
+        "expression": "0.678 * due_date_slack + 0.105 * capacity_pressure + 0.216 * checkpoint_slack_urgency",
+        "rule_type": 3,
+        "priority_expr": "0.678 * due_date_slack + 0.105 * capacity_pressure + 0.216 * checkpoint_slack_urgency",
+        "filter_expr": "critical_ratio - 0.09",
+        "feature_set": "theory11_plus3"
+      },
+      "source": "random",
+      "objective": 0.0,
+      "iteration": 0,
+      "total_tardiness": 0.0,
+      "weighted_service_shortfall": 0.0
+    },
+    {
+      "rule": {
+        "name": "random_t3_013",
+        "expression": "0.294 * checkpoint_slack_urgency + 0.245 * processing_ratio + 0.236 * multi_checkpoint_value + 0.118 * tardiness_exposure + 0.108 * remaining_work",
+        "rule_type": 3,
+        "priority_expr": "0.294 * checkpoint_slack_urgency + 0.245 * processing_ratio + 0.236 * multi_checkpoint_value + 0.118 * tardiness_exposure + 0.108 * remaining_work",
+        "feature_set": "theory11_plus3"
+      },
+      "source": "random",
+      "objective": 0.0,
+      "iteration": 0,
+      "total_tardiness": 0.0,
+      "weighted_service_shortfall": 0.0
+    },
+    {
+      "rule": {
+        "name": "random_t3_014",
+        "expression": "0.512 * processing_ratio + 0.356 * tardiness_exposure + 0.133 * capacity_pressure",
+        "rule_type": 3,
+        "priority_expr": "0.512 * processing_ratio + 0.356 * tardiness_exposure + 0.133 * capacity_pressure",
+        "feature_set": "theory11_plus3"
+      },
+      "source": "random",
+      "objective": 0.0,
+      "iteration": 0,
+      "total_tardiness": 0.0,
+      "weighted_service_shortfall": 0.0
+    },
+    {
+      "rule": {
+        "name": "random_t3_015",
+        "expression": "0.147 * proc_time + 0.359 * forecast_flag + 0.377 * capacity_flag + 0.117 * multi_checkpoint_value",
+        "rule_type": 3,
+        "priority_expr": "0.147 * proc_time + 0.359 * forecast_flag + 0.377 * capacity_flag + 0.117 * multi_checkpoint_value",
+        "feature_set": "theory11_plus3"
+      },
+      "source": "random",
+      "objective": 0.0,
+      "iteration": 0,
+      "total_tardiness": 0.0,
+      "weighted_service_shortfall": 0.0
+    },
+    {
+      "rule": {
+        "name": "random_t3_016",
+        "expression": "0.188 * processing_ratio + 0.410 * checkpoint_slack_urgency + 0.402 * multi_checkpoint_value",
+        "rule_type": 3,
+        "priority_expr": "0.188 * processing_ratio + 0.410 * checkpoint_slack_urgency + 0.402 * multi_checkpoint_value",
+        "feature_set": "theory11_plus3"
+      },
+      "source": "random",
+      "objective": 0.0,
+      "iteration": 0,
+      "total_tardiness": 0.0,
+      "weighted_service_shortfall": 0.0
+    },
+    {
+      "rule": {
+        "name": "random_t3_017",
+        "expression": "0.365 * checkpoint_slack_urgency + 0.247 * critical_ratio + 0.388 * gap_pressure",
+        "rule_type": 3,
+        "priority_expr": "0.365 * checkpoint_slack_urgency + 0.247 * critical_ratio + 0.388 * gap_pressure",
+        "feature_set": "theory11_plus3"
+      },
+      "source": "random",
+      "objective": 0.0,
+      "iteration": 0,
+      "total_tardiness": 0.0,
+      "weighted_service_shortfall": 0.0
+    },
+    {
+      "rule": {
+        "name": "random_t3_018",
+        "expression": "0.171 * tardiness_exposure + 0.234 * due_date_slack + 0.339 * capacity_flag + 0.256 * multi_checkpoint_value",
+        "rule_type": 3,
+        "priority_expr": "0.171 * tardiness_exposure + 0.234 * due_date_slack + 0.339 * capacity_flag + 0.256 * multi_checkpoint_value",
+        "feature_set": "theory11_plus3"
+      },
+      "source": "random",
+      "objective": 0.0,
+      "iteration": 0,
+      "total_tardiness": 0.0,
+      "weighted_service_shortfall": 0.0
+    },
+    {
+      "rule": {
+        "name": "random_t3_019",
+        "expression": "0.126 * quantity_contribution + 0.254 * proc_time + 0.195 * checkpoint_slack_urgency + 0.178 * multi_checkpoint_value + 0.248 * forecast_flag",
+        "rule_type": 3,
+        "priority_expr": "0.126 * quantity_contribution + 0.254 * proc_time + 0.195 * checkpoint_slack_urgency + 0.178 * multi_checkpoint_value + 0.248 * forecast_flag",
+        "filter_expr": "proc_time - 0.09",
+        "feature_set": "theory11_plus3"
+      },
+      "source": "random",
+      "objective": 0.0,
+      "iteration": 0,
+      "total_tardiness": 0.0,
+      "weighted_service_shortfall": 0.0
+    },
+    {
+      "rule": {
+        "name": "random_t3_020",
+        "expression": "0.232 * due_date_slack + 0.314 * gap_pressure + 0.365 * proc_time + 0.090 * capacity_pressure",
+        "rule_type": 3,
+        "priority_expr": "0.232 * due_date_slack + 0.314 * gap_pressure + 0.365 * proc_time + 0.090 * capacity_pressure",
+        "filter_expr": "capacity_pressure - 0.39",
+        "feature_set": "theory11_plus3"
+      },
+      "source": "random",
+      "objective": 0.0,
+      "iteration": 0,
+      "total_tardiness": 0.0,
+      "weighted_service_shortfall": 0.0
+    },
+    {
+      "rule": {
+        "name": "random_t3_021",
+        "expression": "0.080 * critical_ratio + 0.188 * checkpoint_slack_urgency + 0.369 * gap_pressure + 0.363 * processing_ratio",
+        "rule_type": 3,
+        "priority_expr": "0.080 * critical_ratio + 0.188 * checkpoint_slack_urgency + 0.369 * gap_pressure + 0.363 * processing_ratio",
+        "feature_set": "theory11_plus3"
+      },
+      "source": "random",
+      "objective": 0.0,
+      "iteration": 0,
+      "total_tardiness": 0.0,
+      "weighted_service_shortfall": 0.0
+    },
+    {
+      "rule": {
+        "name": "random_t3_022",
+        "expression": "0.313 * checkpoint_slack_urgency + 0.405 * processing_ratio + 0.136 * gap_pressure + 0.146 * remaining_work",
+        "rule_type": 3,
+        "priority_expr": "0.313 * checkpoint_slack_urgency + 0.405 * processing_ratio + 0.136 * gap_pressure + 0.146 * remaining_work",
+        "feature_set": "theory11_plus3"
+      },
+      "source": "random",
+      "objective": 0.0,
+      "iteration": 0,
+      "total_tardiness": 0.0,
+      "weighted_service_shortfall": 0.0
+    },
+    {
+      "rule": {
+        "name": "random_t3_023",
+        "expression": "0.229 * capacity_pressure + 0.277 * critical_ratio + 0.078 * proc_time + 0.415 * remaining_work",
+        "rule_type": 3,
+        "priority_expr": "0.229 * capacity_pressure + 0.277 * critical_ratio + 0.078 * proc_time + 0.415 * remaining_work",
+        "filter_expr": "multi_checkpoint_value - 0.42",
+        "feature_set": "theory11_plus3"
+      },
+      "source": "random",
+      "objective": 0.0,
+      "iteration": 0,
+      "total_tardiness": 0.0,
+      "weighted_service_shortfall": 0.0
+    },
+    {
+      "rule": {
+        "name": "random_t3_024",
+        "expression": "0.204 * checkpoint_slack_urgency + 0.356 * remaining_work + 0.440 * proc_time",
+        "rule_type": 3,
+        "priority_expr": "0.204 * checkpoint_slack_urgency + 0.356 * remaining_work + 0.440 * proc_time",
+        "feature_set": "theory11_plus3"
+      },
+      "source": "random",
+      "objective": 0.0,
+      "iteration": 0,
+      "total_tardiness": 0.0,
+      "weighted_service_shortfall": 0.0
+    },
+    {
+      "rule": {
+        "name": "random_t3_025",
+        "expression": "0.239 * capacity_flag + 0.449 * checkpoint_slack_urgency + 0.311 * proc_time",
+        "rule_type": 3,
+        "priority_expr": "0.239 * capacity_flag + 0.449 * checkpoint_slack_urgency + 0.311 * proc_time",
+        "feature_set": "theory11_plus3"
+      },
+      "source": "random",
+      "objective": 0.0,
+      "iteration": 0,
+      "total_tardiness": 0.0,
+      "weighted_service_shortfall": 0.0
+    },
+    {
+      "rule": {
+        "name": "random_t3_026",
+        "expression": "0.356 * remaining_work + 0.338 * tardiness_exposure + 0.114 * forecast_deficit + 0.192 * processing_ratio",
+        "rule_type": 3,
+        "priority_expr": "0.356 * remaining_work + 0.338 * tardiness_exposure + 0.114 * forecast_deficit + 0.192 * processing_ratio",
+        "feature_set": "theory11_plus3"
+      },
+      "source": "random",
+      "objective": 0.0,
+      "iteration": 0,
+      "total_tardiness": 0.0,
+      "weighted_service_shortfall": 0.0
+    },
+    {
+      "rule": {
+        "name": "random_t3_027",
+        "expression": "0.141 * proc_time + 0.125 * forecast_deficit + 0.258 * checkpoint_slack_urgency + 0.140 * capacity_flag + 0.336 * capacity_pressure",
+        "rule_type": 3,
+        "priority_expr": "0.141 * proc_time + 0.125 * forecast_deficit + 0.258 * checkpoint_slack_urgency + 0.140 * capacity_flag + 0.336 * capacity_pressure",
+        "feature_set": "theory11_plus3"
+      },
+      "source": "random",
+      "objective": 0.0,
+      "iteration": 0,
+      "total_tardiness": 0.0,
+      "weighted_service_shortfall": 0.0
+    },
+    {
+      "rule": {
+        "name": "random_t3_028",
+        "expression": "0.303 * critical_ratio + 0.047 * gap_pressure + 0.287 * forecast_deficit + 0.225 * capacity_pressure + 0.138 * tardiness_exposure",
+        "rule_type": 3,
+        "priority_expr": "0.303 * critical_ratio + 0.047 * gap_pressure + 0.287 * forecast_deficit + 0.225 * capacity_pressure + 0.138 * tardiness_exposure",
+        "feature_set": "theory11_plus3"
+      },
+      "source": "random",
+      "objective": 0.0,
+      "iteration": 0,
+      "total_tardiness": 0.0,
+      "weighted_service_shortfall": 0.0
+    },
+    {
+      "rule": {
+        "name": "random_t3_029",
+        "expression": "0.162 * quantity_contribution + 0.383 * critical_ratio + 0.173 * multi_checkpoint_value + 0.136 * capacity_flag + 0.146 * proc_time",
+        "rule_type": 3,
+        "priority_expr": "0.162 * quantity_contribution + 0.383 * critical_ratio + 0.173 * multi_checkpoint_value + 0.136 * capacity_flag + 0.146 * proc_time",
+        "feature_set": "theory11_plus3"
+      },
+      "source": "random",
+      "objective": 0.0,
+      "iteration": 0,
+      "total_tardiness": 0.0,
+      "weighted_service_shortfall": 0.0
+    },
+    {
+      "rule": {
+        "name": "random_t4_000",
+        "expression": "processing_ratio + 0.08 * proc_time",
+        "rule_type": 4,
+        "priority_expr": "processing_ratio + 0.08 * proc_time",
+        "cond_expr": "checkpoint_slack_urgency > 0.35",
+        "feature_set": "theory11_plus3"
+      },
+      "source": "random",
+      "objective": 0.0,
+      "iteration": 0,
+      "total_tardiness": 0.0,
+      "weighted_service_shortfall": 0.0
+    },
+    {
+      "rule": {
+        "name": "random_t4_001",
+        "expression": "tardiness_exposure + 0.40 * forecast_flag",
+        "rule_type": 4,
+        "priority_expr": "tardiness_exposure + 0.40 * forecast_flag",
+        "cond_expr": "gap_pressure > 0.53",
+        "feature_set": "theory11_plus3"
+      },
+      "source": "random",
+      "objective": 0.0,
+      "iteration": 0,
+      "total_tardiness": 0.0,
+      "weighted_service_shortfall": 0.0
+    },
+    {
+      "rule": {
+        "name": "random_t4_002",
+        "expression": "quantity_contribution + 0.42 * processing_ratio",
+        "rule_type": 4,
+        "priority_expr": "quantity_contribution + 0.42 * processing_ratio",
+        "cond_expr": "multi_checkpoint_value > 0.27",
+        "feature_set": "theory11_plus3"
+      },
+      "source": "random",
+      "objective": 0.0,
+      "iteration": 0,
+      "total_tardiness": 0.0,
+      "weighted_service_shortfall": 0.0
+    },
+    {
+      "rule": {
+        "name": "random_t4_003",
+        "expression": "tardiness_exposure + 0.19 * due_date_slack",
+        "rule_type": 4,
+        "priority_expr": "tardiness_exposure + 0.19 * due_date_slack",
+        "cond_expr": "forecast_flag > 0.50",
+        "feature_set": "theory11_plus3"
+      },
+      "source": "random",
+      "objective": 0.0,
+      "iteration": 0,
+      "total_tardiness": 0.0,
+      "weighted_service_shortfall": 0.0
+    },
+    {
+      "rule": {
+        "name": "random_t4_004",
+        "expression": "critical_ratio + 0.37 * quantity_contribution",
+        "rule_type": 4,
+        "priority_expr": "critical_ratio + 0.37 * quantity_contribution",
+        "cond_expr": "capacity_pressure > 0.32",
+        "feature_set": "theory11_plus3"
+      },
+      "source": "random",
+      "objective": 0.0,
+      "iteration": 0,
+      "total_tardiness": 0.0,
+      "weighted_service_shortfall": 0.0
+    },
+    {
+      "rule": {
+        "name": "random_t4_005",
+        "expression": "gap_pressure + 0.10 * capacity_pressure",
+        "rule_type": 4,
+        "priority_expr": "gap_pressure + 0.10 * capacity_pressure",
+        "cond_expr": "forecast_deficit > 0.56",
+        "filter_expr": "remaining_work - 0.34",
+        "feature_set": "theory11_plus3"
+      },
+      "source": "random",
+      "objective": 0.0,
+      "iteration": 0,
+      "total_tardiness": 0.0,
+      "weighted_service_shortfall": 0.0
+    },
+    {
+      "rule": {
+        "name": "random_t4_006",
+        "expression": "multi_checkpoint_value + 0.27 * proc_time",
+        "rule_type": 4,
+        "priority_expr": "multi_checkpoint_value + 0.27 * proc_time",
+        "cond_expr": "capacity_pressure > 0.44",
+        "feature_set": "theory11_plus3"
+      },
+      "source": "random",
+      "objective": 0.0,
+      "iteration": 0,
+      "total_tardiness": 0.0,
+      "weighted_service_shortfall": 0.0
+    },
+    {
+      "rule": {
+        "name": "random_t4_007",
+        "expression": "checkpoint_slack_urgency + 0.13 * forecast_flag",
+        "rule_type": 4,
+        "priority_expr": "checkpoint_slack_urgency + 0.13 * forecast_flag",
+        "cond_expr": "remaining_work > 0.45",
+        "feature_set": "theory11_plus3"
+      },
+      "source": "random",
+      "objective": 0.0,
+      "iteration": 0,
+      "total_tardiness": 0.0,
+      "weighted_service_shortfall": 0.0
+    },
+    {
+      "rule": {
+        "name": "random_t4_008",
+        "expression": "capacity_pressure + 0.23 * processing_ratio",
+        "rule_type": 4,
+        "priority_expr": "capacity_pressure + 0.23 * processing_ratio",
+        "cond_expr": "tardiness_exposure > 0.25",
+        "feature_set": "theory11_plus3"
+      },
+      "source": "random",
+      "objective": 0.0,
+      "iteration": 0,
+      "total_tardiness": 0.0,
+      "weighted_service_shortfall": 0.0
+    },
+    {
+      "rule": {
+        "name": "random_t4_009",
+        "expression": "forecast_flag + 0.11 * due_date_slack",
+        "rule_type": 4,
+        "priority_expr": "forecast_flag + 0.11 * due_date_slack",
+        "cond_expr": "forecast_deficit > 0.81",
+        "feature_set": "theory11_plus3"
+      },
+      "source": "random",
+      "objective": 0.0,
+      "iteration": 0,
+      "total_tardiness": 0.0,
+      "weighted_service_shortfall": 0.0
+    },
+    {
+      "rule": {
+        "name": "random_t4_010",
+        "expression": "forecast_deficit + 0.15 * forecast_flag",
+        "rule_type": 4,
+        "priority_expr": "forecast_deficit + 0.15 * forecast_flag",
+        "cond_expr": "forecast_deficit > 0.19",
+        "feature_set": "theory11_plus3"
+      },
+      "source": "random",
+      "objective": 0.0,
+      "iteration": 0,
+      "total_tardiness": 0.0,
+      "weighted_service_shortfall": 0.0
+    },
+    {
+      "rule": {
+        "name": "random_t4_011",
+        "expression": "forecast_deficit + 0.13 * capacity_flag",
+        "rule_type": 4,
+        "priority_expr": "forecast_deficit + 0.13 * capacity_flag",
+        "cond_expr": "checkpoint_slack_urgency > 0.78",
+        "filter_expr": "quantity_contribution - 0.21",
+        "feature_set": "theory11_plus3"
+      },
+      "source": "random",
+      "objective": 0.0,
+      "iteration": 0,
+      "total_tardiness": 0.0,
+      "weighted_service_shortfall": 0.0
+    },
+    {
+      "rule": {
+        "name": "random_t4_012",
+        "expression": "quantity_contribution + 0.33 * due_date_slack",
+        "rule_type": 4,
+        "priority_expr": "quantity_contribution + 0.33 * due_date_slack",
+        "cond_expr": "processing_ratio > 0.75",
+        "feature_set": "theory11_plus3"
+      },
+      "source": "random",
+      "objective": 0.0,
+      "iteration": 0,
+      "total_tardiness": 0.0,
+      "weighted_service_shortfall": 0.0
+    },
+    {
+      "rule": {
+        "name": "random_t4_013",
+        "expression": "capacity_flag + 0.20 * proc_time",
+        "rule_type": 4,
+        "priority_expr": "capacity_flag + 0.20 * proc_time",
+        "cond_expr": "capacity_pressure > 0.44",
+        "feature_set": "theory11_plus3"
+      },
+      "source": "random",
+      "objective": 0.0,
+      "iteration": 0,
+      "total_tardiness": 0.0,
+      "weighted_service_shortfall": 0.0
+    },
+    {
+      "rule": {
+        "name": "random_t4_014",
+        "expression": "critical_ratio + 0.31 * remaining_work",
+        "rule_type": 4,
+        "priority_expr": "critical_ratio + 0.31 * remaining_work",
+        "cond_expr": "due_date_slack > 0.71",
+        "feature_set": "theory11_plus3"
+      },
+      "source": "random",
+      "objective": 0.0,
+      "iteration": 0,
+      "total_tardiness": 0.0,
+      "weighted_service_shortfall": 0.0
+    },
+    {
+      "rule": {
+        "name": "random_t4_015",
+        "expression": "forecast_deficit + 0.43 * due_date_slack",
+        "rule_type": 4,
+        "priority_expr": "forecast_deficit + 0.43 * due_date_slack",
+        "cond_expr": "due_date_slack > 0.24",
+        "filter_expr": "remaining_work - 0.26",
+        "feature_set": "theory11_plus3"
+      },
+      "source": "random",
+      "objective": 0.0,
+      "iteration": 0,
+      "total_tardiness": 0.0,
+      "weighted_service_shortfall": 0.0
+    },
+    {
+      "rule": {
+        "name": "random_t4_016",
+        "expression": "critical_ratio + 0.15 * proc_time",
+        "rule_type": 4,
+        "priority_expr": "critical_ratio + 0.15 * proc_time",
+        "cond_expr": "checkpoint_slack_urgency > 0.31",
+        "feature_set": "theory11_plus3"
+      },
+      "source": "random",
+      "objective": 0.0,
+      "iteration": 0,
+      "total_tardiness": 0.0,
+      "weighted_service_shortfall": 0.0
+    },
+    {
+      "rule": {
+        "name": "random_t4_017",
+        "expression": "multi_checkpoint_value + 0.19 * remaining_work",
+        "rule_type": 4,
+        "priority_expr": "multi_checkpoint_value + 0.19 * remaining_work",
+        "cond_expr": "proc_time > 0.82",
+        "filter_expr": "gap_pressure - 0.10",
+        "feature_set": "theory11_plus3"
+      },
+      "source": "random",
+      "objective": 0.0,
+      "iteration": 0,
+      "total_tardiness": 0.0,
+      "weighted_service_shortfall": 0.0
+    },
+    {
+      "rule": {
+        "name": "random_t4_018",
+        "expression": "processing_ratio + 0.16 * capacity_pressure",
+        "rule_type": 4,
+        "priority_expr": "processing_ratio + 0.16 * capacity_pressure",
+        "cond_expr": "multi_checkpoint_value > 0.19",
+        "feature_set": "theory11_plus3"
+      },
+      "source": "random",
+      "objective": 0.0,
+      "iteration": 0,
+      "total_tardiness": 0.0,
+      "weighted_service_shortfall": 0.0
+    },
+    {
+      "rule": {
+        "name": "random_t4_019",
+        "expression": "proc_time + 0.23 * capacity_pressure",
+        "rule_type": 4,
+        "priority_expr": "proc_time + 0.23 * capacity_pressure",
+        "cond_expr": "capacity_pressure > 0.34",
+        "filter_expr": "due_date_slack - 0.16",
+        "feature_set": "theory11_plus3"
+      },
+      "source": "random",
+      "objective": 0.0,
+      "iteration": 0,
+      "total_tardiness": 0.0,
+      "weighted_service_shortfall": 0.0
+    },
+    {
+      "rule": {
+        "name": "random_t4_020",
+        "expression": "capacity_flag + 0.17 * remaining_work",
+        "rule_type": 4,
+        "priority_expr": "capacity_flag + 0.17 * remaining_work",
+        "cond_expr": "checkpoint_slack_urgency > 0.68",
+        "feature_set": "theory11_plus3"
+      },
+      "source": "random",
+      "objective": 0.0,
+      "iteration": 0,
+      "total_tardiness": 0.0,
+      "weighted_service_shortfall": 0.0
+    },
+    {
+      "rule": {
+        "name": "random_t4_021",
+        "expression": "forecast_deficit + 0.33 * multi_checkpoint_value",
+        "rule_type": 4,
+        "priority_expr": "forecast_deficit + 0.33 * multi_checkpoint_value",
+        "cond_expr": "gap_pressure > 0.27",
+        "feature_set": "theory11_plus3"
+      },
+      "source": "random",
+      "objective": 0.0,
+      "iteration": 0,
+      "total_tardiness": 0.0,
+      "weighted_service_shortfall": 0.0
+    },
+    {
+      "rule": {
+        "name": "random_t4_022",
+        "expression": "remaining_work + 0.09 * critical_ratio",
+        "rule_type": 4,
+        "priority_expr": "remaining_work + 0.09 * critical_ratio",
+        "cond_expr": "multi_checkpoint_value > 0.76",
+        "filter_expr": "processing_ratio - 0.34",
+        "feature_set": "theory11_plus3"
+      },
+      "source": "random",
+      "objective": 0.0,
+      "iteration": 0,
+      "total_tardiness": 0.0,
+      "weighted_service_shortfall": 0.0
+    },
+    {
+      "rule": {
+        "name": "random_t4_023",
+        "expression": "tardiness_exposure + 0.11 * gap_pressure",
+        "rule_type": 4,
+        "priority_expr": "tardiness_exposure + 0.11 * gap_pressure",
+        "cond_expr": "capacity_pressure > 0.63",
+        "feature_set": "theory11_plus3"
+      },
+      "source": "random",
+      "objective": 0.0,
+      "iteration": 0,
+      "total_tardiness": 0.0,
+      "weighted_service_shortfall": 0.0
+    },
+    {
+      "rule": {
+        "name": "random_t4_024",
+        "expression": "processing_ratio + 0.10 * due_date_slack",
+        "rule_type": 4,
+        "priority_expr": "processing_ratio + 0.10 * due_date_slack",
+        "cond_expr": "capacity_flag > 0.50",
+        "filter_expr": "forecast_deficit - 0.30",
+        "feature_set": "theory11_plus3"
+      },
+      "source": "random",
+      "objective": 0.0,
+      "iteration": 0,
+      "total_tardiness": 0.0,
+      "weighted_service_shortfall": 0.0
+    },
+    {
+      "rule": {
+        "name": "random_t4_025",
+        "expression": "capacity_pressure + 0.14 * forecast_flag",
+        "rule_type": 4,
+        "priority_expr": "capacity_pressure + 0.14 * forecast_flag",
+        "cond_expr": "processing_ratio > 0.70",
+        "feature_set": "theory11_plus3"
+      },
+      "source": "random",
+      "objective": 0.0,
+      "iteration": 0,
+      "total_tardiness": 0.0,
+      "weighted_service_shortfall": 0.0
+    },
+    {
+      "rule": {
+        "name": "random_t4_026",
+        "expression": "quantity_contribution + 0.33 * checkpoint_slack_urgency",
+        "rule_type": 4,
+        "priority_expr": "quantity_contribution + 0.33 * checkpoint_slack_urgency",
+        "cond_expr": "proc_time > 0.53",
+        "feature_set": "theory11_plus3"
+      },
+      "source": "random",
+      "objective": 0.0,
+      "iteration": 0,
+      "total_tardiness": 0.0,
+      "weighted_service_shortfall": 0.0
+    },
+    {
+      "rule": {
+        "name": "random_t4_027",
+        "expression": "processing_ratio + 0.42 * quantity_contribution",
+        "rule_type": 4,
+        "priority_expr": "processing_ratio + 0.42 * quantity_contribution",
+        "cond_expr": "gap_pressure > 0.58",
+        "feature_set": "theory11_plus3"
+      },
+      "source": "random",
+      "objective": 0.0,
+      "iteration": 0,
+      "total_tardiness": 0.0,
+      "weighted_service_shortfall": 0.0
+    },
+    {
+      "rule": {
+        "name": "random_t4_028",
+        "expression": "quantity_contribution + 0.44 * due_date_slack",
+        "rule_type": 4,
+        "priority_expr": "quantity_contribution + 0.44 * due_date_slack",
+        "cond_expr": "remaining_work > 0.70",
+        "feature_set": "theory11_plus3"
+      },
+      "source": "random",
+      "objective": 0.0,
+      "iteration": 0,
+      "total_tardiness": 0.0,
+      "weighted_service_shortfall": 0.0
+    },
+    {
+      "rule": {
+        "name": "random_t4_029",
+        "expression": "multi_checkpoint_value + 0.16 * tardiness_exposure",
+        "rule_type": 4,
+        "priority_expr": "multi_checkpoint_value + 0.16 * tardiness_exposure",
+        "cond_expr": "due_date_slack > 0.65",
+        "filter_expr": "multi_checkpoint_value - 0.34",
+        "feature_set": "theory11_plus3"
+      },
+      "source": "random",
+      "objective": 0.0,
+      "iteration": 0,
+      "total_tardiness": 0.0,
+      "weighted_service_shortfall": 0.0
+    }
+  ]
+}

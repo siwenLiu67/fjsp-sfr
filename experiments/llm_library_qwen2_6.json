@@ -1,0 +1,43 @@
+{
+  "rules": [
+    {
+      "name": "balanced_service_risk",
+      "expression": "0.4 * multi_checkpoint_value + 0.3 * (1 - tardiness_exposure) + 0.3 * due_date_slack",
+      "rule_type": 3,
+      "priority_expr": "0.4 * multi_checkpoint_value + 0.3 * (1 - tardiness_exposure) + 0.3 * due_date_slack"
+    },
+    {
+      "name": "log_urgency_weighted",
+      "expression": "math.log(1 + checkpoint_slack_urgency) * multi_checkpoint_value - 0.2 * processing_ratio",
+      "rule_type": 3,
+      "priority_expr": "math.log(1 + checkpoint_slack_urgency) * multi_checkpoint_value - 0.2 * processing_ratio"
+    },
+    {
+      "name": "constrained_value_select",
+      "expression": "multi_checkpoint_value - processing_ratio",
+      "rule_type": 4,
+      "priority_expr": "multi_checkpoint_value - processing_ratio",
+      "cond_expr": "capacity_pressure > 0.5",
+      "filter_expr": "forecast_deficit > 0.1"
+    },
+    {
+      "name": "value_density_priority",
+      "expression": "multi_checkpoint_value / (1e-6 + processing_ratio)",
+      "rule_type": 1,
+      "priority_expr": "multi_checkpoint_value / (1e-6 + processing_ratio)"
+    },
+    {
+      "name": "slack_conditioned_tardiness",
+      "expression": "-tardiness_exposure * math.exp(gap_pressure)",
+      "rule_type": 2,
+      "priority_expr": "-tardiness_exposure * math.exp(gap_pressure)",
+      "cond_expr": "due_date_slack < 0.3"
+    },
+    {
+      "name": "hybrid_tardiness_service",
+      "expression": "0.5 * tardiness_exposure + 0.3 * gap_pressure + 0.2 * (1 - multi_checkpoint_value)",
+      "rule_type": 3,
+      "priority_expr": "0.5 * tardiness_exposure + 0.3 * gap_pressure + 0.2 * (1 - multi_checkpoint_value)"
+    }
+  ]
+}

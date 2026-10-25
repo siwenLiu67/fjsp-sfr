@@ -1,0 +1,41 @@
+{
+  "rules": [
+    {
+      "name": "weighted_service_balance",
+      "expression": "0.4 * multi_checkpoint_value + 0.3 * quantity_contribution - 0.3 * tardiness_exposure",
+      "rule_type": 3,
+      "priority_expr": "0.4 * multi_checkpoint_value + 0.3 * quantity_contribution - 0.3 * tardiness_exposure"
+    },
+    {
+      "name": "balanced_efficiency",
+      "expression": "- (processing_ratio + 0.5 * capacity_pressure) / (1 + due_date_slack)",
+      "rule_type": 1,
+      "priority_expr": "- (processing_ratio + 0.5 * capacity_pressure) / (1 + due_date_slack)"
+    },
+    {
+      "name": "forecast_aware_conditional",
+      "expression": "-forecast_deficit * quantity_contribution * checkpoint_slack_urgency",
+      "rule_type": 2,
+      "priority_expr": "-forecast_deficit * quantity_contribution * checkpoint_slack_urgency",
+      "cond_expr": "forecast_flag == 1"
+    },
+    {
+      "name": "multi_value_tardiness_blend",
+      "expression": "0.5 * multi_checkpoint_value - 0.3 * tardiness_exposure - 0.2 * processing_ratio",
+      "rule_type": 3,
+      "priority_expr": "0.5 * multi_checkpoint_value - 0.3 * tardiness_exposure - 0.2 * processing_ratio"
+    },
+    {
+      "name": "service_risk_composite",
+      "expression": "0.4 * checkpoint_slack_urgency + 0.4 * forecast_deficit - 0.2 * due_date_slack",
+      "rule_type": 3,
+      "priority_expr": "0.4 * checkpoint_slack_urgency + 0.4 * forecast_deficit - 0.2 * due_date_slack"
+    },
+    {
+      "name": "slack_gap_balance",
+      "expression": "0.6 * due_date_slack - 0.4 * gap_pressure",
+      "rule_type": 3,
+      "priority_expr": "0.6 * due_date_slack - 0.4 * gap_pressure"
+    }
+  ]
+}

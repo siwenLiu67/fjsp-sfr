@@ -1,0 +1,23 @@
+{
+  "rules": [
+    {
+      "name": "weighted_service_balance",
+      "expression": "0.4 * multi_checkpoint_value + 0.3 * quantity_contribution - 0.3 * tardiness_exposure",
+      "rule_type": 3,
+      "priority_expr": "0.4 * multi_checkpoint_value + 0.3 * quantity_contribution - 0.3 * tardiness_exposure"
+    },
+    {
+      "name": "multi_value_tardiness_blend",
+      "expression": "0.5 * multi_checkpoint_value - 0.3 * tardiness_exposure - 0.2 * processing_ratio",
+      "rule_type": 3,
+      "priority_expr": "0.5 * multi_checkpoint_value - 0.3 * tardiness_exposure - 0.2 * processing_ratio"
+    },
+    {
+      "name": "forecast_insufficiency_filter",
+      "expression": "-forecast_deficit * quantity_contribution",
+      "rule_type": 4,
+      "priority_expr": "-forecast_deficit * quantity_contribution",
+      "filter_expr": "forecast_flag == 1"
+    }
+  ]
+}

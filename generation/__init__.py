@@ -9,6 +9,7 @@ from .instance_generator import (
     LatentDemandScenario,
     generate_instance,
 )
+from .scale_config import make_scaled_instance, scaled_instance_config
 
 __all__ = [
     "ARRIVAL_WINDOW_FACTORS",
@@ -18,4 +19,6 @@ __all__ = [
     "InstanceConfig",
     "LatentDemandScenario",
     "generate_instance",
+    "make_scaled_instance",
+    "scaled_instance_config",
 ]

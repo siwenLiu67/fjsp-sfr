@@ -1,0 +1,31 @@
+{
+  "library": "classic4",
+  "library_file": "experiments/classic4_library.json",
+  "scale": "M",
+  "eval_scale": "M",
+  "difficulty": "balanced",
+  "seed": 2,
+  "selector": "hgt_ppo",
+  "mask_checkpoint": false,
+  "mask_forecast": false,
+  "episodes": 3,
+  "episodes_per_update": 3,
+  "smoke": true,
+  "means": {
+    "F": 317.38962398802704,
+    "TT": 240.0,
+    "WSF": 77.38962398802705
+  },
+  "std_F": 116.10437655467082,
+  "fixed_action": null,
+  "fixed_rule": null,
+  "training_seconds": 0.8613444999791682,
+  "rule_usage": {
+    "SPT": 117,
+    "ATC_K2": 16
+  },
+  "total_variation": 0.022613225241191002,
+  "switch_rate": 0.12030075187969924,
+  "decision_seconds_mean": 0.000286660388224107,
+  "per_instance_csv": "/Volumes/siwen_硬盘/论文/rg-alns/worktrees/fjsp_sfr/experiments/formal_smoke/balanced_M_classic4_hgt_ppo_seed2/per_instance.csv"
+}

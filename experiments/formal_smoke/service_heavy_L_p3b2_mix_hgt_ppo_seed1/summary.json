@@ -1,0 +1,31 @@
+{
+  "library": "p3b2_mix",
+  "library_file": "experiments/llm_library_p3b2_L_mix.json",
+  "scale": "L",
+  "eval_scale": "L",
+  "difficulty": "service_heavy",
+  "seed": 1,
+  "selector": "hgt_ppo",
+  "mask_checkpoint": false,
+  "mask_forecast": false,
+  "episodes": 3,
+  "episodes_per_update": 3,
+  "smoke": true,
+  "means": {
+    "F": 1324.9627265143272,
+    "TT": 739.6666666666666,
+    "WSF": 585.2960598476606
+  },
+  "std_F": 65.70089424157806,
+  "fixed_action": null,
+  "fixed_rule": null,
+  "training_seconds": 1.8854769580066204,
+  "rule_usage": {
+    "SPT": 214,
+    "ATC_K2": 53
+  },
+  "total_variation": 0.013910494098368817,
+  "switch_rate": 0.19850187265917604,
+  "decision_seconds_mean": 0.0002833512221020036,
+  "per_instance_csv": "/Volumes/siwen_硬盘/论文/rg-alns/worktrees/fjsp_sfr/experiments/formal_smoke/service_heavy_L_p3b2_mix_hgt_ppo_seed1/per_instance.csv"
+}

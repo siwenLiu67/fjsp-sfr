@@ -1,0 +1,25 @@
+{
+  "rules": [
+    {
+      "name": "Multi_Feature_Index",
+      "expression": "0.4 * quantity_contribution + 0.3 * (1 - tardiness_exposure) + 0.2 * (1 - proc_time) + 0.1 * checkpoint_slack_urgency",
+      "rule_type": 3,
+      "priority_expr": "0.4 * quantity_contribution + 0.3 * (1 - tardiness_exposure) + 0.2 * (1 - proc_time) + 0.1 * checkpoint_slack_urgency",
+      "feature_set": "theory11_plus3"
+    },
+    {
+      "name": "Critical_Ratio_Hybrid",
+      "expression": "0.4 * critical_ratio + 0.3 * due_date_slack + 0.2 * multi_checkpoint_value + 0.1 * (1 - gap_pressure)",
+      "rule_type": 3,
+      "priority_expr": "0.4 * critical_ratio + 0.3 * due_date_slack + 0.2 * multi_checkpoint_value + 0.1 * (1 - gap_pressure)",
+      "feature_set": "theory11_plus3"
+    },
+    {
+      "name": "Pressure_Adjusted_SPT",
+      "expression": "(1 - proc_time) * (1 - capacity_pressure) + 0.2 * gap_pressure",
+      "rule_type": 2,
+      "priority_expr": "(1 - proc_time) * (1 - capacity_pressure) + 0.2 * gap_pressure",
+      "feature_set": "theory11_plus3"
+    }
+  ]
+}

@@ -1,0 +1,123 @@
+{
+  "schema_version": 1,
+  "tag": "p3b1_dryrun_v2",
+  "completed_rounds": 4,
+  "candidate_total": 40,
+  "parsed_total": 36,
+  "reason_counts": {
+    "unsafe_expression": 4,
+    "constant_priority": 4,
+    "duplicate_definition": 24,
+    "behavior_duplicate": 0
+  },
+  "candidates": [
+    {
+      "rule": {
+        "name": "dry_r0_0",
+        "expression": "gap_pressure",
+        "rule_type": 1,
+        "priority_expr": "gap_pressure",
+        "feature_set": "theory11_plus3"
+      },
+      "objective": 795.4658748351442,
+      "iteration": 0,
+      "total_tardiness": 479.7,
+      "weighted_service_shortfall": 315.76587483514425
+    },
+    {
+      "rule": {
+        "name": "dry_r0_1",
+        "expression": "-due_date_slack",
+        "rule_type": 1,
+        "priority_expr": "-due_date_slack",
+        "feature_set": "theory11_plus3"
+      },
+      "objective": 823.9908748351442,
+      "iteration": 0,
+      "total_tardiness": 504.35,
+      "weighted_service_shortfall": 319.64087483514425
+    },
+    {
+      "rule": {
+        "name": "dry_r0_2",
+        "expression": "forecast_deficit + gap_pressure",
+        "rule_type": 2,
+        "priority_expr": "forecast_deficit + gap_pressure",
+        "feature_set": "theory11_plus3"
+      },
+      "objective": 779.4908748351443,
+      "iteration": 0,
+      "total_tardiness": 473.6,
+      "weighted_service_shortfall": 305.89087483514425
+    },
+    {
+      "rule": {
+        "name": "dry_r0_3",
+        "expression": "-tardiness_exposure + processing_ratio",
+        "rule_type": 2,
+        "priority_expr": "-tardiness_exposure + processing_ratio",
+        "feature_set": "theory11_plus3"
+      },
+      "objective": 727.5408748351442,
+      "iteration": 0,
+      "total_tardiness": 446.4,
+      "weighted_service_shortfall": 281.14087483514425
+    },
+    {
+      "rule": {
+        "name": "dry_r0_4",
+        "expression": "0.6 * multi_checkpoint_value + 0.4 * gap_pressure",
+        "rule_type": 3,
+        "priority_expr": "0.6 * multi_checkpoint_value + 0.4 * gap_pressure",
+        "feature_set": "theory11_plus3"
+      },
+      "objective": 703.8408748351442,
+      "iteration": 0,
+      "total_tardiness": 429.45,
+      "weighted_service_shortfall": 274.39087483514425
+    },
+    {
+      "rule": {
+        "name": "dry_r0_5",
+        "expression": "capacity_pressure - 0.3 * processing_ratio",
+        "rule_type": 3,
+        "priority_expr": "capacity_pressure - 0.3 * processing_ratio",
+        "feature_set": "theory11_plus3"
+      },
+      "objective": 652.6908748351442,
+      "iteration": 0,
+      "total_tardiness": 391.3,
+      "weighted_service_shortfall": 261.39087483514425
+    },
+    {
+      "rule": {
+        "name": "dry_r0_6",
+        "expression": "quantity_contribution + forecast_deficit",
+        "rule_type": 4,
+        "priority_expr": "quantity_contribution + forecast_deficit",
+        "cond_expr": "forecast_flag",
+        "filter_expr": "quantity_contribution - 0.05",
+        "feature_set": "theory11_plus3"
+      },
+      "objective": 651.9908748351443,
+      "iteration": 0,
+      "total_tardiness": 402.85,
+      "weighted_service_shortfall": 249.14087483514422
+    },
+    {
+      "rule": {
+        "name": "dry_r0_7",
+        "expression": "checkpoint_slack_urgency + capacity_pressure",
+        "rule_type": 4,
+        "priority_expr": "checkpoint_slack_urgency + capacity_pressure",
+        "cond_expr": "capacity_flag",
+        "filter_expr": "capacity_pressure - 0.01",
+        "feature_set": "theory11_plus3"
+      },
+      "objective": 779.8158748351442,
+      "iteration": 0,
+      "total_tardiness": 477.3,
+      "weighted_service_shortfall": 302.51587483514425
+    }
+  ]
+}

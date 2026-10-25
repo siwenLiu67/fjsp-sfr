@@ -10,7 +10,7 @@ from fjsp_sfr.dispatch.symbolic_rule import SymbolicRule
 
 @dataclass(frozen=True)
 class RuleLibrary:
-    rules: tuple[SymbolicRule, ...]
+    rules: tuple[object, ...]
 
     def action_size(self) -> int:
         return len(self.rules)
@@ -38,8 +38,15 @@ class RuleLibrary:
     def from_json(cls, path: str) -> "RuleLibrary":
         with open(path, encoding="utf-8") as stream:
             data = json.load(stream)
+        from fjsp_sfr.dispatch.classic_rules import ClassicRule
+
         return cls(
-            rules=tuple(SymbolicRule.from_dict(item) for item in data["rules"])
+            rules=tuple(
+                ClassicRule.from_dict(item)
+                if item.get("kind") == "classic"
+                else SymbolicRule.from_dict(item)
+                for item in data["rules"]
+            )
         )
 
     def to_json(self, path: str) -> None:

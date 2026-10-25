@@ -1,0 +1,31 @@
+{
+  "library": "handwritten6",
+  "library_file": "handwritten6",
+  "scale": "S",
+  "eval_scale": "S",
+  "difficulty": "service_heavy",
+  "seed": 1,
+  "selector": "hgt_ppo",
+  "mask_checkpoint": false,
+  "mask_forecast": false,
+  "episodes": 3,
+  "episodes_per_update": 3,
+  "smoke": true,
+  "means": {
+    "F": 385.907097837744,
+    "TT": 226.66666666666666,
+    "WSF": 159.24043117107738
+  },
+  "std_F": 49.53835723079158,
+  "fixed_action": null,
+  "fixed_rule": null,
+  "training_seconds": 0.43075141636654735,
+  "rule_usage": {
+    "gap_priority": 40,
+    "gap_tard_combo": 25
+  },
+  "total_variation": 0.022271492996159395,
+  "switch_rate": 0.38461538461538464,
+  "decision_seconds_mean": 0.0002629211602302698,
+  "per_instance_csv": "/Volumes/siwen_硬盘/论文/rg-alns/worktrees/fjsp_sfr/experiments/formal_smoke/service_heavy_S_handwritten6_hgt_ppo_seed1/per_instance.csv"
+}

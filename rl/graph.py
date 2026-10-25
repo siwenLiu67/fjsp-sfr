@@ -9,7 +9,7 @@ import torch
 from fjsp_sfr.core.online import SchedulingProblem
 from fjsp_sfr.core.state import ScheduleState
 from fjsp_sfr.dispatch.ca_metrics import CADecisionMetrics, CheckpointMetrics
-from fjsp_sfr.dispatch.theory_features import THEORY_FEATURE_NAMES
+from fjsp_sfr.dispatch.theory_features import feature_names_for
 
 
 @dataclass
@@ -31,6 +31,54 @@ class HeteroGraphData:
     num_jobs: int
     num_machines: int
     num_checkpoints: int
+
+
+def apply_information_masks(
+    data: HeteroGraphData,
+    *,
+    feature_set: str = "theory11",
+    mask_checkpoint: bool = False,
+    mask_forecast: bool = False,
+) -> HeteroGraphData:
+    """Mask selector inputs while leaving dispatch-rule factors untouched."""
+
+    job_x = data.job_x.clone()
+    checkpoint_x = data.checkpoint_x.clone()
+    global_x = data.global_x.clone()
+    checkpoint_edge_index = data.job_checkpoint_edge_index.clone()
+    checkpoint_edge_attr = data.job_checkpoint_edge_attr.clone()
+    num_checkpoints = data.num_checkpoints
+
+    if mask_forecast:
+        names = feature_names_for(feature_set)
+        for name in ("forecast_deficit", "forecast_flag"):
+            job_x[:, names.index(name)] = 0.0
+        if checkpoint_x.shape[0]:
+            checkpoint_x[:, 3] = 0.0
+            checkpoint_x[:, 5] = 0.0
+        global_x[5] = 0.0
+
+    if mask_checkpoint:
+        checkpoint_x = data.checkpoint_x.new_empty((0, data.checkpoint_x.shape[1]))
+        checkpoint_edge_index = data.job_checkpoint_edge_index.new_empty((2, 0))
+        checkpoint_edge_attr = data.job_checkpoint_edge_attr.new_empty(
+            (0, data.job_checkpoint_edge_attr.shape[1])
+        )
+        num_checkpoints = 0
+
+    return HeteroGraphData(
+        job_x=job_x,
+        machine_x=data.machine_x,
+        checkpoint_x=checkpoint_x,
+        job_machine_edge_index=data.job_machine_edge_index,
+        job_machine_edge_attr=data.job_machine_edge_attr,
+        job_checkpoint_edge_index=checkpoint_edge_index,
+        job_checkpoint_edge_attr=checkpoint_edge_attr,
+        global_x=global_x,
+        num_jobs=data.num_jobs,
+        num_machines=data.num_machines,
+        num_checkpoints=num_checkpoints,
+    )
 
 
 def _clamp_unit(value: float) -> float:
@@ -72,6 +120,7 @@ def build_hetero_graph(
     *,
     time_scale: float = 1.0,
     processing_scale: float = 1.0,
+    feature_set: str = "theory11",
 ) -> HeteroGraphData:
     """从当前决策点构建 job-machine-checkpoint 异构图。"""
 
@@ -81,11 +130,15 @@ def build_hetero_graph(
         raise ValueError("processing_scale must be positive")
 
     candidates = tuple(sorted(metrics.candidates, key=lambda item: item.job_id))
-    feature_width = len(THEORY_FEATURE_NAMES)
+    feature_names = feature_names_for(feature_set)
+    feature_width = len(feature_names)
     if len(theory_features) != len(candidates) or any(
         len(row) != feature_width for row in theory_features
     ):
-        raise ValueError("theory features must have shape (num_candidates, 11)")
+        raise ValueError(
+            "theory features must have shape "
+            f"(num_candidates, {feature_width})"
+        )
 
     machines = tuple(sorted(problem.machines, key=lambda item: item.machine_id))
     machine_indices = {
@@ -191,9 +244,9 @@ def build_hetero_graph(
         )
         for _key, checkpoint in active_checkpoints
     ]
-    tardiness_index = THEORY_FEATURE_NAMES.index("tardiness_exposure")
-    forecast_flag_index = THEORY_FEATURE_NAMES.index("forecast_flag")
-    capacity_flag_index = THEORY_FEATURE_NAMES.index("capacity_flag")
+    tardiness_index = feature_names.index("tardiness_exposure")
+    forecast_flag_index = feature_names.index("forecast_flag")
+    capacity_flag_index = feature_names.index("capacity_flag")
     global_x = torch.tensor(
         (
             float(state.current_time) / time_scale,

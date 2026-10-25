@@ -13,15 +13,21 @@ from torch.distributions import Categorical
 
 from fjsp_sfr.core.models import FJSPInstance
 from fjsp_sfr.core.objective import compute_objective
+from fjsp_sfr.dispatch.classic_rules import ClassicRule
 from fjsp_sfr.dispatch.rule_library import RuleLibrary
 from fjsp_sfr.dispatch.symbolic_rule import SymbolicRule
 from fjsp_sfr.dispatch.theory_features import (
     THEORY_FEATURE_NAMES,
     build_extended_theory_features,
+    feature_names_for,
 )
 from fjsp_sfr.env.ca_observation import resolve_observation_scales
 from fjsp_sfr.env.ca_rule_selection import CAPPORuleSelectionEnv
-from fjsp_sfr.rl.graph import HeteroGraphData, build_hetero_graph
+from fjsp_sfr.rl.graph import (
+    HeteroGraphData,
+    apply_information_masks,
+    build_hetero_graph,
+)
 from fjsp_sfr.rl.ppo_agent import HGTPPOAgent
 from fjsp_sfr.rl.rollout_buffer import RolloutBuffer, RolloutStep
 
@@ -102,12 +108,20 @@ def _summary_row(
 
 
 def _rule_candidate_index(
-    rule: SymbolicRule,
+    rule: object,
     factor_rows: tuple[tuple[float, ...], ...],
+    *,
+    problem=None,
+    state=None,
+    metrics=None,
 ) -> int:
     if not factor_rows:
         raise ValueError("cannot dispatch without candidates")
-    if rule.is_applicable(_summary_row(factor_rows)):
+    if isinstance(rule, ClassicRule):
+        if problem is None or state is None or metrics is None:
+            raise ValueError("classic rules require problem, state, and metrics")
+        scores = rule.evaluate_candidates(problem, state, metrics)
+    elif rule.is_applicable(_summary_row(factor_rows)):
         scores = rule.evaluate_batch(factor_rows)
     else:
         slack_index = THEORY_FEATURE_NAMES.index("due_date_slack")
@@ -143,7 +157,11 @@ class PPOTrainer:
         base_seed: int = 0,
         entropy_coef_start: float | None = None,
         entropy_coef_end: float | None = None,
+        feature_set: str = "theory11",
+        mask_checkpoint: bool = False,
+        mask_forecast: bool = False,
     ) -> None:
+        feature_names_for(feature_set)
         resolved_instances = list(instances or [])
         if instance_factory is None and not resolved_instances:
             raise ValueError("instances must not be empty without instance_factory")
@@ -190,6 +208,9 @@ class PPOTrainer:
             else ()
         )
         self.reward_scale = float(reward_scale)
+        self.feature_set = feature_set
+        self.mask_checkpoint = bool(mask_checkpoint)
+        self.mask_forecast = bool(mask_forecast)
         self.optimizer = torch.optim.Adam(agent.parameters(), lr=lr)
 
     @property
@@ -244,6 +265,7 @@ class PPOTrainer:
             state,
             metrics,
             time_scale=time_scale,
+            feature_set=self.feature_set,
         )
         graph = build_hetero_graph(
             problem,
@@ -252,6 +274,13 @@ class PPOTrainer:
             features,
             time_scale=time_scale,
             processing_scale=processing_scale,
+            feature_set=self.feature_set,
+        )
+        graph = apply_information_masks(
+            graph,
+            feature_set=self.feature_set,
+            mask_checkpoint=self.mask_checkpoint,
+            mask_forecast=self.mask_forecast,
         )
         return _move_graph(graph, self.device), features
 
@@ -295,7 +324,13 @@ class PPOTrainer:
                 mask = self._get_action_mask(env)
                 action, log_prob, value = self.agent.select_action(graph, mask)
                 rule = self.library.get_rule(action)
-                candidate_index = _rule_candidate_index(rule, features)
+                candidate_index = _rule_candidate_index(
+                    rule,
+                    features,
+                    problem=env._problem_view(),
+                    state=env._state,
+                    metrics=env.current_metrics,
+                )
                 result = env.step_candidate(candidate_index)
                 # result.reward is exactly -(F_cum(t_next) - F_cum(t_now)).
                 reward = (

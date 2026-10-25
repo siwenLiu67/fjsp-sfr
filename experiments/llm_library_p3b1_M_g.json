@@ -1,0 +1,37 @@
+{
+  "rules": [
+    {
+      "name": "Multi_Feature_Index",
+      "expression": "0.4 * quantity_contribution + 0.3 * (1 - tardiness_exposure) + 0.2 * (1 - proc_time) + 0.1 * checkpoint_slack_urgency",
+      "rule_type": 3,
+      "priority_expr": "0.4 * quantity_contribution + 0.3 * (1 - tardiness_exposure) + 0.2 * (1 - proc_time) + 0.1 * checkpoint_slack_urgency",
+      "feature_set": "theory11_plus3",
+      "source": "llm",
+      "f_H": 0.9790292809305832,
+      "selection_F": [
+        606.0860309750749,
+        308.73400461301674,
+        447.5021483000662,
+        645.4710596841528,
+        525.7300563809254,
+        679.5863058416064,
+        569.0426646925098,
+        620.3415143211176,
+        518.6618591811589,
+        601.6846877109602,
+        545.7519797795815,
+        506.2849439345615,
+        719.6066570857668,
+        685.5570122200199,
+        566.6080341600629,
+        451.15048467548695,
+        596.4593550743965,
+        525.9886641285603,
+        619.3734153771009,
+        579.4254994049904
+      ],
+      "max_selected_similarity": 0.0,
+      "marginal_gain_at_selection": 0.020970719069416832
+    }
+  ]
+}

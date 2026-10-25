@@ -1,0 +1,49 @@
+{
+  "rules": [
+    {
+      "name": "Deficit_Adjusted_SPT",
+      "expression": "-proc_time * (1.0 + 2.0 * forecast_deficit)",
+      "rule_type": 2,
+      "priority_expr": "-proc_time * (1.0 + 2.0 * forecast_deficit)",
+      "feature_set": "theory11_plus3"
+    },
+    {
+      "name": "Critical_Ratio_Push",
+      "expression": "critical_ratio",
+      "rule_type": 1,
+      "priority_expr": "critical_ratio",
+      "feature_set": "theory11_plus3"
+    },
+    {
+      "name": "Adaptive_Checkpoint_Priority",
+      "expression": "0.35 * checkpoint_slack_urgency + 0.35 * (1.0 - capacity_pressure) + 0.2 * (1.0 - tardiness_exposure) + 0.1 * (1.0 - gap_pressure)",
+      "rule_type": 3,
+      "priority_expr": "0.35 * checkpoint_slack_urgency + 0.35 * (1.0 - capacity_pressure) + 0.2 * (1.0 - tardiness_exposure) + 0.1 * (1.0 - gap_pressure)",
+      "feature_set": "theory11_plus3"
+    },
+    {
+      "name": "Balanced_Tradeoff_Selector",
+      "expression": "0.5 * (1.0 - remaining_work) + 0.3 * (1.0 - forecast_deficit) + 0.2 * due_date_slack",
+      "rule_type": 4,
+      "priority_expr": "0.5 * (1.0 - remaining_work) + 0.3 * (1.0 - forecast_deficit) + 0.2 * due_date_slack",
+      "cond_expr": "mean_remaining_work > 0.5",
+      "feature_set": "theory11_plus3"
+    },
+    {
+      "name": "Low_Workload_Efficiency",
+      "expression": "1.0 - proc_time",
+      "rule_type": 4,
+      "priority_expr": "1.0 - proc_time",
+      "cond_expr": "mean_remaining_work < 0.3",
+      "filter_expr": "remaining_work < 0.5",
+      "feature_set": "theory11_plus3"
+    },
+    {
+      "name": "Value_Deficit_Balance",
+      "expression": "multi_checkpoint_value - 0.5 * forecast_deficit",
+      "rule_type": 2,
+      "priority_expr": "multi_checkpoint_value - 0.5 * forecast_deficit",
+      "feature_set": "theory11_plus3"
+    }
+  ]
+}

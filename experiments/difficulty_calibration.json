@@ -1,0 +1,82 @@
+[
+  {
+    "scale": "S",
+    "jobs": 8,
+    "machines": 3,
+    "entities": 1,
+    "checkpoints": 2.0,
+    "mean_F_by_rule": {
+      "SPT": 321.4539070704147,
+      "EDD": 391.9039070704146,
+      "ATC_K2": 337.50390707041464,
+      "MIN_SLACK": 543.8139070704146,
+      "default_due_date_slack": 448.07390707041463
+    },
+    "TT_fraction": 0.5678522892431227,
+    "WSF_fraction": 0.4321477107568773,
+    "best_classic_mean_F": 310.04390707041466,
+    "best_classic_TT_fraction": 0.5034125697704886,
+    "best_classic_WSF_fraction": 0.49658743022951135,
+    "max_relative_rule_gap": 0.6917321429578762
+  },
+  {
+    "scale": "M",
+    "jobs": 15,
+    "machines": 5,
+    "entities": 2,
+    "checkpoints": 4.0,
+    "mean_F_by_rule": {
+      "SPT": 544.8619959859082,
+      "EDD": 715.12388620876,
+      "ATC_K2": 564.1999112878224,
+      "MIN_SLACK": 988.4598370751826,
+      "default_due_date_slack": 829.4688984337569
+    },
+    "TT_fraction": 0.5914311543070832,
+    "WSF_fraction": 0.40856884569291685,
+    "best_classic_mean_F": 529.4479228347246,
+    "best_classic_TT_fraction": 0.5419229873710668,
+    "best_classic_WSF_fraction": 0.4580770126289332,
+    "max_relative_rule_gap": 0.8141471498422277
+  },
+  {
+    "scale": "L",
+    "jobs": 30,
+    "machines": 8,
+    "entities": 4,
+    "checkpoints": 8.0,
+    "mean_F_by_rule": {
+      "SPT": 1133.454654936584,
+      "EDD": 1502.7272643938393,
+      "ATC_K2": 1203.3679321013321,
+      "MIN_SLACK": 2234.628791292343,
+      "default_due_date_slack": 1861.5644037210784
+    },
+    "TT_fraction": 0.6391209960196432,
+    "WSF_fraction": 0.3608790039803567,
+    "best_classic_mean_F": 1107.629132824786,
+    "best_classic_TT_fraction": 0.5845277817393933,
+    "best_classic_WSF_fraction": 0.41547221826060665,
+    "max_relative_rule_gap": 0.9715202382025324
+  },
+  {
+    "scale": "X",
+    "jobs": 60,
+    "machines": 16,
+    "entities": 8,
+    "checkpoints": 16.0,
+    "mean_F_by_rule": {
+      "SPT": 2307.0615545358783,
+      "EDD": 3083.254655534082,
+      "ATC_K2": 2436.332498398029,
+      "MIN_SLACK": 4557.526707208173,
+      "default_due_date_slack": 3713.2667072081736
+    },
+    "TT_fraction": 0.6353990852658085,
+    "WSF_fraction": 0.36460091473419165,
+    "best_classic_mean_F": 2285.6922676539443,
+    "best_classic_TT_fraction": 0.5836656223933907,
+    "best_classic_WSF_fraction": 0.41633437760660913,
+    "max_relative_rule_gap": 0.9754681873345296
+  }
+]

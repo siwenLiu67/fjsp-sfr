@@ -4,7 +4,7 @@ from conftest import make_test_instance
 
 from fjsp_sfr.dispatch.theory_features import build_extended_theory_features
 from fjsp_sfr.env.ca_rule_selection import CAPPORuleSelectionEnv
-from fjsp_sfr.rl.graph import build_hetero_graph
+from fjsp_sfr.rl.graph import apply_information_masks, build_hetero_graph
 
 
 def _graph():
@@ -61,6 +61,26 @@ class TestGraphConstruction:
 
         assert graph.global_x.shape == (7,)
 
+    def test_information_masks_only_change_selector_graph(self):
+        _observation, graph = _graph()
+        graph.job_x[:, 1] = 0.5
+        graph.job_x[:, 7] = 1.0
+        graph.global_x[5] = 1.0
+        masked = apply_information_masks(
+            graph,
+            feature_set="theory11",
+            mask_checkpoint=True,
+            mask_forecast=True,
+        )
+        assert masked.num_checkpoints == 0
+        assert masked.checkpoint_x.shape == (0, 8)
+        assert masked.job_checkpoint_edge_index.shape == (2, 0)
+        assert torch.all(masked.job_x[:, 1] == 0.0)
+        assert torch.all(masked.job_x[:, 7] == 0.0)
+        assert masked.global_x[5].item() == 0.0
+        assert torch.all(graph.job_x[:, 1] == 0.5)
+        assert torch.all(graph.job_x[:, 7] == 1.0)
+
     def test_edge_attribute_shapes(self):
         _observation, graph = _graph()
 
@@ -74,3 +94,21 @@ class TestGraphConstruction:
             graph.job_checkpoint_edge_index.shape[1],
             2,
         )
+
+    def test_plus3_job_dimension(self):
+        env = CAPPORuleSelectionEnv(make_test_instance())
+        env.reset()
+        features = build_extended_theory_features(
+            env._problem_view(),
+            env._state,
+            env.current_metrics,
+            feature_set="theory11_plus3",
+        )
+        graph = build_hetero_graph(
+            env._problem_view(),
+            env._state,
+            env.current_metrics,
+            features,
+            feature_set="theory11_plus3",
+        )
+        assert graph.job_x.shape == (graph.num_jobs, 14)

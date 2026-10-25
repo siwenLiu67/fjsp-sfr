@@ -1,0 +1,31 @@
+{
+  "scales": {
+    "S": {"jobs": 8, "machines": 3, "entities": 1},
+    "M": {"jobs": 15, "machines": 5, "entities": 2},
+    "L": {"jobs": 30, "machines": 8, "entities": 4},
+    "X": {"jobs": 60, "machines": 16, "entities": 8}
+  },
+  "difficulties": {
+    "easy": {
+      "checkpoint_tightness": 1.15,
+      "service_commitment_scale_range": [0.75, 0.95],
+      "job_due_date_factor_range": [0.95, 1.25]
+    },
+    "balanced": {
+      "checkpoint_tightness": 0.9,
+      "service_commitment_scale_range": [0.95, 1.15],
+      "job_due_date_factor_range": [0.70, 1.00]
+    },
+    "hard": {
+      "checkpoint_tightness": 0.75,
+      "service_commitment_scale_range": [1.05, 1.25],
+      "job_due_date_factor_range": [0.55, 0.85]
+    },
+    "service_heavy": {
+      "checkpoint_tightness": 0.82,
+      "service_commitment_scale_range": [1.05, 1.25],
+      "job_due_date_factor_range": [0.70, 1.00],
+      "checkpoint_weight_scale": 2.5
+    }
+  }
+}

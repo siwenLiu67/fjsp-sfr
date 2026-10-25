@@ -1,0 +1,28 @@
+{
+  "main": [
+    {"id": "spt", "label": "SPT", "directory": "01_spt"},
+    {"id": "edd", "label": "EDD", "directory": "02_edd"},
+    {"id": "atc", "label": "ATC", "directory": "03_atc"},
+    {"id": "minslack", "label": "MIN_SLACK", "directory": "04_minslack"},
+    {"id": "best_single", "label": "Best single", "directory": "05_best_single_pool_center_mix"},
+    {"id": "rolling_ga", "label": "Rolling GA", "directory": "07_rolling_ga"},
+    {"id": "hgt_ddqn", "label": "HGT-DDQN", "directory": "12_hgt_ddqn_pool_center_mix"},
+    {"id": "hgt_a2c", "label": "HGT-A2C", "directory": "13_hgt_a2c_pool_center_mix"},
+    {"id": "hgt_rainbow", "label": "HGT-Rainbow", "directory": "14_hgt_rainbow_pool_center_mix"},
+    {"id": "hgt_ppo", "label": "HGT-PPO", "directory": "10_hgt_ppo_pool_center_mix", "proposed": true}
+  ],
+  "ablation_library": [
+    {"id": "pool_mix", "label": "Pool mix", "directory": "10_hgt_ppo_pool_center_mix", "proposed": true},
+    {"id": "pool_g", "label": "Pool LLM", "directory": "10_hgt_ppo_pool_center_g"},
+    {"id": "handwritten", "label": "Handwritten", "directory": "10_hgt_ppo_handwritten_center"},
+    {"id": "random_nogate_mix", "label": "Random mix", "directory": "10_hgt_ppo_random_center_nogate_mix"},
+    {"id": "classic4", "label": "Classic4", "directory": "10_hgt_ppo_classic4"}
+  ],
+  "ablation_network": [
+    {"id": "hgt_ppo", "label": "HGT-PPO", "directory": "10_hgt_ppo_pool_center_mix", "proposed": true},
+    {"id": "mlp_ppo", "label": "MLP-PPO", "directory": "11_mlp_ppo_pool_center_mix"},
+    {"id": "mask_checkpoint", "label": "No checkpoint graph", "directory": "10_hgt_ppo_pool_center_mix_mask_checkpoint"},
+    {"id": "mask_forecast", "label": "No forecast inputs", "directory": "10_hgt_ppo_pool_center_mix_mask_forecast"},
+    {"id": "random_select", "label": "Random selector", "directory": "06_random_select_pool_center_mix"}
+  ]
+}

@@ -1,0 +1,24 @@
+{
+  "rules": [
+    {
+      "name": "balanced_service_risk",
+      "expression": "0.4 * multi_checkpoint_value + 0.3 * (1 - tardiness_exposure) + 0.3 * due_date_slack",
+      "rule_type": 3,
+      "priority_expr": "0.4 * multi_checkpoint_value + 0.3 * (1 - tardiness_exposure) + 0.3 * due_date_slack"
+    },
+    {
+      "name": "log_urgency_weighted",
+      "expression": "math.log(1 + checkpoint_slack_urgency) * multi_checkpoint_value - 0.2 * processing_ratio",
+      "rule_type": 3,
+      "priority_expr": "math.log(1 + checkpoint_slack_urgency) * multi_checkpoint_value - 0.2 * processing_ratio"
+    },
+    {
+      "name": "constrained_value_select",
+      "expression": "multi_checkpoint_value - processing_ratio",
+      "rule_type": 4,
+      "priority_expr": "multi_checkpoint_value - processing_ratio",
+      "cond_expr": "capacity_pressure > 0.5",
+      "filter_expr": "forecast_deficit > 0.1"
+    }
+  ]
+}

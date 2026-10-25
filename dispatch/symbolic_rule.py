@@ -6,7 +6,11 @@ from dataclasses import dataclass, field
 from enum import IntEnum
 
 from fjsp_sfr.dispatch.safe_eval import CompiledExpression, compile_expression
-from fjsp_sfr.dispatch.theory_features import THEORY_FEATURE_NAMES
+from fjsp_sfr.dispatch.theory_features import (
+    batch_context_for_rows,
+    expression_names_for,
+    feature_names_for,
+)
 
 
 class RuleType(IntEnum):
@@ -24,6 +28,7 @@ class SymbolicRule:
     priority_expr: str
     cond_expr: str | None = None
     filter_expr: str | None = None
+    feature_set: str = "theory11"
 
     _compiled_priority: CompiledExpression | None = field(
         default=None,
@@ -48,22 +53,23 @@ class SymbolicRule:
     )
 
     def __post_init__(self) -> None:
+        feature_names = expression_names_for(self.feature_set)
         object.__setattr__(
             self,
             "_compiled_priority",
-            compile_expression(self.priority_expr, THEORY_FEATURE_NAMES),
+            compile_expression(self.priority_expr, feature_names),
         )
         if self.cond_expr is not None:
             object.__setattr__(
                 self,
                 "_compiled_cond",
-                compile_expression(self.cond_expr, THEORY_FEATURE_NAMES),
+                compile_expression(self.cond_expr, feature_names),
             )
         if self.filter_expr is not None:
             object.__setattr__(
                 self,
                 "_compiled_filter",
-                compile_expression(self.filter_expr, THEORY_FEATURE_NAMES),
+                compile_expression(self.filter_expr, feature_names),
             )
 
     def evaluate_batch(
@@ -71,16 +77,34 @@ class SymbolicRule:
     ) -> list[float]:
         """计算每个 candidate 的优先级分数。"""
 
-        assert self._compiled_priority is not None
+        context = batch_context_for_rows(self.feature_set, factor_rows)
+        priority_scores = self.priority_scores(factor_rows)
         scores: list[float] = []
-        for row in factor_rows:
-            variables = dict(zip(THEORY_FEATURE_NAMES, row))
+        for row, priority_score in zip(
+            factor_rows, priority_scores, strict=True
+        ):
+            variables = dict(zip(feature_names_for(self.feature_set), row))
+            variables.update(context)
             if (
                 self._compiled_filter is not None
                 and self._compiled_filter.evaluate(variables) <= 0.0
             ):
                 scores.append(float("-inf"))
                 continue
+            scores.append(priority_score)
+        return scores
+
+    def priority_scores(
+        self, factor_rows: tuple[tuple[float, ...], ...]
+    ) -> list[float]:
+        """Evaluate only Priority, before an optional candidate filter."""
+
+        assert self._compiled_priority is not None
+        context = batch_context_for_rows(self.feature_set, factor_rows)
+        scores = []
+        for row in factor_rows:
+            variables = dict(zip(feature_names_for(self.feature_set), row))
+            variables.update(context)
             scores.append(self._compiled_priority.evaluate(variables))
         return scores
 
@@ -89,7 +113,11 @@ class SymbolicRule:
 
         if self._compiled_cond is None:
             return True
-        variables = dict(zip(THEORY_FEATURE_NAMES, summary_row))
+        variables = dict(zip(feature_names_for(self.feature_set), summary_row))
+        if self.feature_set == "theory11_plus3":
+            index = feature_names_for(self.feature_set).index("remaining_work")
+            value = summary_row[index]
+            variables["mean_remaining_work"] = value / max(1e-12, 1.0 - value)
         return self._compiled_cond.evaluate(variables) > 0.0
 
     def to_dict(self) -> dict:
@@ -105,6 +133,8 @@ class SymbolicRule:
             data["cond_expr"] = self.cond_expr
         if self.filter_expr is not None:
             data["filter_expr"] = self.filter_expr
+        if self.feature_set != "theory11":
+            data["feature_set"] = self.feature_set
         return data
 
     @classmethod
@@ -118,4 +148,5 @@ class SymbolicRule:
             priority_expr=data["priority_expr"],
             cond_expr=data.get("cond_expr"),
             filter_expr=data.get("filter_expr"),
+            feature_set=data.get("feature_set", "theory11"),
         )

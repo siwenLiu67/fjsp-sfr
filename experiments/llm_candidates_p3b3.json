@@ -1,0 +1,353 @@
+{
+  "schema_version": 1,
+  "tag": "p3b3",
+  "completed_rounds": 4,
+  "candidate_total": 40,
+  "parsed_total": 37,
+  "reason_counts": {
+    "unsafe_expression": 3,
+    "simulation_error": 11,
+    "behavior_duplicate": 0
+  },
+  "candidates": [
+    {
+      "rule": {
+        "name": "SPT_Enhanced",
+        "expression": "-proc_time",
+        "rule_type": 1,
+        "priority_expr": "-proc_time",
+        "feature_set": "theory11_plus3"
+      },
+      "objective": 579.7658748351442,
+      "iteration": 0,
+      "total_tardiness": 317.5,
+      "weighted_service_shortfall": 262.26587483514425
+    },
+    {
+      "rule": {
+        "name": "Critical_Ratio_Priority",
+        "expression": "critical_ratio",
+        "rule_type": 1,
+        "priority_expr": "critical_ratio",
+        "feature_set": "theory11_plus3"
+      },
+      "objective": 692.972410697257,
+      "iteration": 0,
+      "total_tardiness": 421.75,
+      "weighted_service_shortfall": 271.22241069725703
+    },
+    {
+      "rule": {
+        "name": "Tardiness_Checkpoint_Balance",
+        "expression": "(1.0 - tardiness_exposure) * (0.5 + 0.5 * multi_checkpoint_value)",
+        "rule_type": 2,
+        "priority_expr": "(1.0 - tardiness_exposure) * (0.5 + 0.5 * multi_checkpoint_value)",
+        "feature_set": "theory11_plus3"
+      },
+      "objective": 614.4893810035873,
+      "iteration": 0,
+      "total_tardiness": 370.55,
+      "weighted_service_shortfall": 243.93938100358724
+    },
+    {
+      "rule": {
+        "name": "Urgent_Deficit_Handler",
+        "expression": "forecast_deficit * checkpoint_slack_urgency - 0.2 * proc_time",
+        "rule_type": 2,
+        "priority_expr": "forecast_deficit * checkpoint_slack_urgency - 0.2 * proc_time",
+        "feature_set": "theory11_plus3"
+      },
+      "objective": 577.2408748351443,
+      "iteration": 0,
+      "total_tardiness": 320.1,
+      "weighted_service_shortfall": 257.14087483514425
+    },
+    {
+      "rule": {
+        "name": "Hybrid_WS_TT_Minimizer",
+        "expression": "0.4 * quantity_contribution + 0.3 * (1.0 - tardiness_exposure) + 0.2 * (1.0 - gap_pressure) + 0.1 * due_date_slack",
+        "rule_type": 3,
+        "priority_expr": "0.4 * quantity_contribution + 0.3 * (1.0 - tardiness_exposure) + 0.2 * (1.0 - gap_pressure) + 0.1 * due_date_slack",
+        "feature_set": "theory11_plus3"
+      },
+      "objective": 628.2820996828357,
+      "iteration": 0,
+      "total_tardiness": 380.35,
+      "weighted_service_shortfall": 247.93209968283577
+    },
+    {
+      "rule": {
+        "name": "Capacity_Aware_Scheduler",
+        "expression": "0.5 * (1.0 - capacity_pressure) + 0.3 * remaining_work + 0.2 * processing_ratio",
+        "rule_type": 3,
+        "priority_expr": "0.5 * (1.0 - capacity_pressure) + 0.3 * remaining_work + 0.2 * processing_ratio",
+        "feature_set": "theory11_plus3"
+      },
+      "objective": 990.4658748351442,
+      "iteration": 0,
+      "total_tardiness": 642.7,
+      "weighted_service_shortfall": 347.76587483514425
+    },
+    {
+      "rule": {
+        "name": "Slack_Based_Filtered_SPT",
+        "expression": "-proc_time",
+        "rule_type": 2,
+        "priority_expr": "-proc_time",
+        "filter_expr": "due_date_slack > 0.2",
+        "feature_set": "theory11_plus3"
+      },
+      "objective": 714.2158748351442,
+      "iteration": 0,
+      "total_tardiness": 419.95,
+      "weighted_service_shortfall": 294.26587483514425
+    },
+    {
+      "rule": {
+        "name": "Deficit_Driven_Selection",
+        "expression": "0.6 * forecast_deficit + 0.4 * (1.0 - checkpoint_slack_urgency)",
+        "rule_type": 3,
+        "priority_expr": "0.6 * forecast_deficit + 0.4 * (1.0 - checkpoint_slack_urgency)",
+        "feature_set": "theory11_plus3"
+      },
+      "objective": 836.3408748351442,
+      "iteration": 0,
+      "total_tardiness": 504.7,
+      "weighted_service_shortfall": 331.64087483514425
+    },
+    {
+      "rule": {
+        "name": "Gap_Pressure_Urgency",
+        "expression": "gap_pressure",
+        "rule_type": 1,
+        "priority_expr": "gap_pressure",
+        "feature_set": "theory11_plus3"
+      },
+      "objective": 795.4658748351442,
+      "iteration": 1,
+      "total_tardiness": 479.7,
+      "weighted_service_shortfall": 315.76587483514425
+    },
+    {
+      "rule": {
+        "name": "Multi_Value_Contributor",
+        "expression": "multi_checkpoint_value",
+        "rule_type": 1,
+        "priority_expr": "multi_checkpoint_value",
+        "feature_set": "theory11_plus3"
+      },
+      "objective": 618.5773188770559,
+      "iteration": 1,
+      "total_tardiness": 379.4,
+      "weighted_service_shortfall": 239.17731887705582
+    },
+    {
+      "rule": {
+        "name": "Tardiness_Slack_Hybrid",
+        "expression": "(1.0 - tardiness_exposure) + 0.5 * due_date_slack - 0.3 * proc_time",
+        "rule_type": 2,
+        "priority_expr": "(1.0 - tardiness_exposure) + 0.5 * due_date_slack - 0.3 * proc_time",
+        "feature_set": "theory11_plus3"
+      },
+      "objective": 596.4408748351442,
+      "iteration": 1,
+      "total_tardiness": 342.05,
+      "weighted_service_shortfall": 254.39087483514422
+    },
+    {
+      "rule": {
+        "name": "Deficit_Capacity_Balance",
+        "expression": "forecast_deficit * (1.0 - capacity_pressure) + 0.2 * quantity_contribution",
+        "rule_type": 2,
+        "priority_expr": "forecast_deficit * (1.0 - capacity_pressure) + 0.2 * quantity_contribution",
+        "feature_set": "theory11_plus3"
+      },
+      "objective": 744.6658748351442,
+      "iteration": 1,
+      "total_tardiness": 461.15,
+      "weighted_service_shortfall": 283.51587483514425
+    },
+    {
+      "rule": {
+        "name": "Integrated_Checkpoint_Index",
+        "expression": "0.4 * gap_pressure + 0.3 * (1.0 - tardiness_exposure) + 0.2 * multi_checkpoint_value + 0.1 * (1.0 - proc_time)",
+        "rule_type": 3,
+        "priority_expr": "0.4 * gap_pressure + 0.3 * (1.0 - tardiness_exposure) + 0.2 * multi_checkpoint_value + 0.1 * (1.0 - proc_time)",
+        "feature_set": "theory11_plus3"
+      },
+      "objective": 626.4908748351443,
+      "iteration": 1,
+      "total_tardiness": 358.35,
+      "weighted_service_shortfall": 268.14087483514425
+    },
+    {
+      "rule": {
+        "name": "Workload_Urgency_Index",
+        "expression": "0.5 * remaining_work + 0.3 * checkpoint_slack_urgency + 0.2 * capacity_pressure",
+        "rule_type": 3,
+        "priority_expr": "0.5 * remaining_work + 0.3 * checkpoint_slack_urgency + 0.2 * capacity_pressure",
+        "feature_set": "theory11_plus3"
+      },
+      "objective": 848.4658748351442,
+      "iteration": 1,
+      "total_tardiness": 550.2,
+      "weighted_service_shortfall": 298.26587483514425
+    },
+    {
+      "rule": {
+        "name": "Slack_Deficit_Hybrid",
+        "expression": "due_date_slack * (1.0 - forecast_deficit)",
+        "rule_type": 1,
+        "priority_expr": "due_date_slack * (1.0 - forecast_deficit)",
+        "feature_set": "theory11_plus3"
+      },
+      "objective": 677.1408748351442,
+      "iteration": 2,
+      "total_tardiness": 410.0,
+      "weighted_service_shortfall": 267.14087483514425
+    },
+    {
+      "rule": {
+        "name": "Pressure_Contribution_Index",
+        "expression": "gap_pressure * quantity_contribution",
+        "rule_type": 1,
+        "priority_expr": "gap_pressure * quantity_contribution",
+        "feature_set": "theory11_plus3"
+      },
+      "objective": 651.4658748351442,
+      "iteration": 2,
+      "total_tardiness": 406.45,
+      "weighted_service_shortfall": 245.01587483514422
+    },
+    {
+      "rule": {
+        "name": "Urgent_Capacity_Corrector",
+        "expression": "(1.0 - tardiness_exposure) - 0.5 * capacity_pressure - 0.3 * proc_time",
+        "rule_type": 2,
+        "priority_expr": "(1.0 - tardiness_exposure) - 0.5 * capacity_pressure - 0.3 * proc_time",
+        "feature_set": "theory11_plus3"
+      },
+      "objective": 665.4908748351443,
+      "iteration": 2,
+      "total_tardiness": 368.85,
+      "weighted_service_shortfall": 296.64087483514425
+    },
+    {
+      "rule": {
+        "name": "Checkpoint_Value_Slack",
+        "expression": "multi_checkpoint_value * (0.6 + 0.4 * due_date_slack)",
+        "rule_type": 2,
+        "priority_expr": "multi_checkpoint_value * (0.6 + 0.4 * due_date_slack)",
+        "feature_set": "theory11_plus3"
+      },
+      "objective": 625.9273188770559,
+      "iteration": 2,
+      "total_tardiness": 383.5,
+      "weighted_service_shortfall": 242.42731887705582
+    },
+    {
+      "rule": {
+        "name": "Balanced_Tardiness_Workload",
+        "expression": "0.4 * (1.0 - tardiness_exposure) + 0.3 * (1.0 - remaining_work) + 0.2 * checkpoint_slack_urgency + 0.1 * (1.0 - capacity_pressure)",
+        "rule_type": 3,
+        "priority_expr": "0.4 * (1.0 - tardiness_exposure) + 0.3 * (1.0 - remaining_work) + 0.2 * checkpoint_slack_urgency + 0.1 * (1.0 - capacity_pressure)",
+        "feature_set": "theory11_plus3"
+      },
+      "objective": 664.6158748351443,
+      "iteration": 2,
+      "total_tardiness": 389.6,
+      "weighted_service_shortfall": 275.01587483514425
+    },
+    {
+      "rule": {
+        "name": "Dynamic_Deficit_Priority",
+        "expression": "0.5 * forecast_deficit + 0.3 * gap_pressure + 0.2 * (1.0 - critical_ratio)",
+        "rule_type": 3,
+        "priority_expr": "0.5 * forecast_deficit + 0.3 * gap_pressure + 0.2 * (1.0 - critical_ratio)",
+        "feature_set": "theory11_plus3"
+      },
+      "objective": 838.9908748351442,
+      "iteration": 2,
+      "total_tardiness": 503.85,
+      "weighted_service_shortfall": 335.14087483514425
+    },
+    {
+      "rule": {
+        "name": "Slack_Driven_SPT",
+        "expression": "due_date_slack - 0.5 * proc_time",
+        "rule_type": 1,
+        "priority_expr": "due_date_slack - 0.5 * proc_time",
+        "feature_set": "theory11_plus3"
+      },
+      "objective": 564.9908748351443,
+      "iteration": 3,
+      "total_tardiness": 315.1,
+      "weighted_service_shortfall": 249.89087483514422
+    },
+    {
+      "rule": {
+        "name": "Checkpoint_Urgency_Max",
+        "expression": "checkpoint_slack_urgency",
+        "rule_type": 1,
+        "priority_expr": "checkpoint_slack_urgency",
+        "feature_set": "theory11_plus3"
+      },
+      "objective": 740.6158748351443,
+      "iteration": 3,
+      "total_tardiness": 456.6,
+      "weighted_service_shortfall": 284.01587483514425
+    },
+    {
+      "rule": {
+        "name": "Deficit_Adjusted_Workload",
+        "expression": "remaining_work + 0.8 * forecast_deficit - 0.3 * due_date_slack",
+        "rule_type": 2,
+        "priority_expr": "remaining_work + 0.8 * forecast_deficit - 0.3 * due_date_slack",
+        "feature_set": "theory11_plus3"
+      },
+      "objective": 1030.0408748351442,
+      "iteration": 3,
+      "total_tardiness": 677.15,
+      "weighted_service_shortfall": 352.89087483514425
+    },
+    {
+      "rule": {
+        "name": "Capacity_Constrained_Value",
+        "expression": "multi_checkpoint_value * (1.0 - capacity_pressure) + 0.2 * (1.0 - tardiness_exposure)",
+        "rule_type": 2,
+        "priority_expr": "multi_checkpoint_value * (1.0 - capacity_pressure) + 0.2 * (1.0 - tardiness_exposure)",
+        "feature_set": "theory11_plus3"
+      },
+      "objective": 627.7393810035873,
+      "iteration": 3,
+      "total_tardiness": 376.3,
+      "weighted_service_shortfall": 251.43938100358724
+    },
+    {
+      "rule": {
+        "name": "Balanced_Tardiness_Service",
+        "expression": "0.4 * (1.0 - tardiness_exposure) + 0.3 * quantity_contribution + 0.2 * (1.0 - gap_pressure) + 0.1 * critical_ratio",
+        "rule_type": 3,
+        "priority_expr": "0.4 * (1.0 - tardiness_exposure) + 0.3 * quantity_contribution + 0.2 * (1.0 - gap_pressure) + 0.1 * critical_ratio",
+        "feature_set": "theory11_plus3"
+      },
+      "objective": 620.5706556409242,
+      "iteration": 3,
+      "total_tardiness": 372.3,
+      "weighted_service_shortfall": 248.2706556409242
+    },
+    {
+      "rule": {
+        "name": "Adaptive_Checkpoint_Priority",
+        "expression": "0.5 * checkpoint_slack_urgency + 0.3 * forecast_deficit + 0.2 * (1.0 - processing_ratio)",
+        "rule_type": 3,
+        "priority_expr": "0.5 * checkpoint_slack_urgency + 0.3 * forecast_deficit + 0.2 * (1.0 - processing_ratio)",
+        "feature_set": "theory11_plus3"
+      },
+      "objective": 713.6408748351442,
+      "iteration": 3,
+      "total_tardiness": 433.25,
+      "weighted_service_shortfall": 280.39087483514425
+    }
+  ]
+}

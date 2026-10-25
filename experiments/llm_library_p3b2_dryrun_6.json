@@ -1,0 +1,49 @@
+{
+  "rules": [
+    {
+      "name": "dry_r0_6",
+      "expression": "quantity_contribution + forecast_deficit",
+      "rule_type": 4,
+      "priority_expr": "quantity_contribution + forecast_deficit",
+      "filter_expr": "quantity_contribution - 0.05",
+      "feature_set": "theory11_plus3"
+    },
+    {
+      "name": "dry_r0_5",
+      "expression": "capacity_pressure - 0.3 * processing_ratio",
+      "rule_type": 3,
+      "priority_expr": "capacity_pressure - 0.3 * processing_ratio",
+      "feature_set": "theory11_plus3"
+    },
+    {
+      "name": "dry_r0_0",
+      "expression": "gap_pressure",
+      "rule_type": 1,
+      "priority_expr": "gap_pressure",
+      "feature_set": "theory11_plus3"
+    },
+    {
+      "name": "dry_r0_3",
+      "expression": "-tardiness_exposure + processing_ratio",
+      "rule_type": 2,
+      "priority_expr": "-tardiness_exposure + processing_ratio",
+      "cond_expr": "capacity_flag",
+      "feature_set": "theory11_plus3"
+    },
+    {
+      "name": "dry_r0_7",
+      "expression": "checkpoint_slack_urgency + capacity_pressure",
+      "rule_type": 4,
+      "priority_expr": "checkpoint_slack_urgency + capacity_pressure",
+      "filter_expr": "capacity_pressure - 0.01",
+      "feature_set": "theory11_plus3"
+    },
+    {
+      "name": "dry_r0_4",
+      "expression": "0.6 * multi_checkpoint_value + 0.4 * gap_pressure",
+      "rule_type": 3,
+      "priority_expr": "0.6 * multi_checkpoint_value + 0.4 * gap_pressure",
+      "feature_set": "theory11_plus3"
+    }
+  ]
+}

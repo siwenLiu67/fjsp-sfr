@@ -3,6 +3,9 @@
 from __future__ import annotations
 
 import argparse
+import csv
+import hashlib
+import json
 import math
 import random
 import sys
@@ -19,7 +22,10 @@ if str(PACKAGE_PARENT) not in sys.path:
 
 from fjsp_sfr.core.objective import compute_objective
 from fjsp_sfr.dispatch.rule_library import RuleLibrary
-from fjsp_sfr.dispatch.theory_features import build_extended_theory_features
+from fjsp_sfr.dispatch.theory_features import (
+    build_extended_theory_features,
+    feature_names_for,
+)
 from fjsp_sfr.env.ca_observation import resolve_observation_scales
 from fjsp_sfr.env.ca_rule_selection import CAPPORuleSelectionEnv
 from fjsp_sfr.experiments.validate_framework import (
@@ -28,6 +34,7 @@ from fjsp_sfr.experiments.validate_framework import (
     evaluate_single_rule,
     make_fjsp_instance,
 )
+from fjsp_sfr.experiments.manifest import file_sha256, write_manifest
 from fjsp_sfr.rl.graph import build_hetero_graph
 from fjsp_sfr.rl.ppo_agent import HGTPPOAgent
 from fjsp_sfr.rl.ppo_trainer import PPOTrainer
@@ -64,6 +71,8 @@ class EvaluationPoint:
 class PolicyEvaluation:
     values: list[float]
     usage: dict[str, int]
+    tt_values: list[float] | None = None
+    wsf_values: list[float] | None = None
     total_variation: float | None = None
     switch_rate: float | None = None
 
@@ -105,10 +114,19 @@ def linear_schedule(
     return start + fraction * (end - start)
 
 
-def select_rule_library(name: str) -> tuple[RuleLibrary, RuleLibrary]:
+def select_rule_library(
+    name: str | None = None,
+    library_file: str | None = None,
+) -> tuple[RuleLibrary, RuleLibrary]:
     """Return the selected library and the complete six-rule reference library."""
 
     all_six = build_rule_library()
+    if library_file is not None:
+        selected = RuleLibrary.from_json(library_file)
+        if selected.action_size() <= 0:
+            raise ValueError("external rule library must contain at least one rule")
+        return selected, all_six
+    name = name or "all6"
     if name == "all6":
         return all_six, all_six
     selected = tuple(
@@ -119,6 +137,23 @@ def select_rule_library(name: str) -> tuple[RuleLibrary, RuleLibrary]:
     return RuleLibrary(rules=selected), all_six
 
 
+def library_source_metadata(
+    name: str | None,
+    library_file: str | None,
+) -> dict[str, str]:
+    """Return stable checkpoint metadata for a built-in or JSON library."""
+
+    if library_file is None:
+        return {"kind": "builtin", "name": name or "all6"}
+    path = Path(library_file).expanduser().resolve()
+    payload = path.read_bytes()
+    return {
+        "kind": "json",
+        "path": str(path),
+        "sha256": hashlib.sha256(payload).hexdigest(),
+    }
+
+
 def _policy_rollout(
     agent,
     library,
@@ -126,7 +161,8 @@ def _policy_rollout(
     *,
     greedy: bool,
     seed: int,
-) -> tuple[float, Counter[str], list[list[float]], list[int]]:
+    feature_set: str = "theory11",
+) -> tuple[float, float, float, Counter[str], list[list[float]], list[int]]:
     """Run one policy episode and retain decision probabilities and actions."""
 
     rollout_instance = deepcopy(instance)
@@ -149,6 +185,7 @@ def _policy_rollout(
             state,
             metrics,
             time_scale=time_scale,
+            feature_set=feature_set,
         )
         graph = build_hetero_graph(
             problem,
@@ -157,6 +194,7 @@ def _policy_rollout(
             features,
             time_scale=time_scale,
             processing_scale=processing_scale,
+            feature_set=feature_set,
         )
         mask = torch.ones(library.action_size(), dtype=torch.bool)
         with torch.no_grad():
@@ -175,7 +213,14 @@ def _policy_rollout(
             break
 
     objective = compute_objective(rollout_instance, env._state)
-    return float(objective.Z), usage, probabilities, actions
+    return (
+        float(objective.Z),
+        float(objective.total_tardiness),
+        float(objective.weighted_checkpoint_shortfall),
+        usage,
+        probabilities,
+        actions,
+    )
 
 
 def evaluate_policy(
@@ -186,25 +231,33 @@ def evaluate_policy(
     greedy: bool,
     repeats: int = 1,
     base_seed: int = 0,
+    feature_set: str = "theory11",
 ) -> PolicyEvaluation:
     """Evaluate a greedy or sampled policy, optionally with sensitivity metrics."""
 
     values: list[float] = []
+    tt_values: list[float] = []
+    wsf_values: list[float] = []
     usage: Counter[str] = Counter()
     all_probabilities: list[list[float]] = []
     switch_count = 0
     decision_count = 0
     for instance_index, instance in enumerate(instances):
         repeated_values: list[float] = []
+        repeated_tt: list[float] = []
+        repeated_wsf: list[float] = []
         for repeat in range(repeats):
-            objective, instance_usage, probabilities, actions = _policy_rollout(
+            objective, tt, wsf, instance_usage, probabilities, actions = _policy_rollout(
                 agent,
                 library,
                 instance,
                 greedy=greedy,
                 seed=base_seed + instance_index * repeats + repeat,
+                feature_set=feature_set,
             )
             repeated_values.append(objective)
+            repeated_tt.append(tt)
+            repeated_wsf.append(wsf)
             usage.update(instance_usage)
             if greedy:
                 all_probabilities.extend(probabilities)
@@ -219,13 +272,22 @@ def evaluate_policy(
                     )
                     decision_count += len(actions)
         values.append(sum(repeated_values) / len(repeated_values))
+        tt_values.append(sum(repeated_tt) / len(repeated_tt))
+        wsf_values.append(sum(repeated_wsf) / len(repeated_wsf))
 
     if not greedy:
-        return PolicyEvaluation(values=values, usage=dict(usage))
+        return PolicyEvaluation(
+            values=values,
+            usage=dict(usage),
+            tt_values=tt_values,
+            wsf_values=wsf_values,
+        )
     if not all_probabilities:
         return PolicyEvaluation(
             values=values,
             usage=dict(usage),
+            tt_values=tt_values,
+            wsf_values=wsf_values,
             total_variation=0.0,
             switch_rate=0.0,
         )
@@ -238,6 +300,8 @@ def evaluate_policy(
     return PolicyEvaluation(
         values=values,
         usage=dict(usage),
+        tt_values=tt_values,
+        wsf_values=wsf_values,
         total_variation=total_variation,
         switch_rate=switch_rate,
     )
@@ -275,12 +339,15 @@ def bootstrap_mean_ci(
     return sum(differences) / size, lower, upper
 
 
-def new_agent(action_size: int) -> HGTPPOAgent:
+def new_agent(
+    action_size: int, feature_set: str = "theory11"
+) -> HGTPPOAgent:
     return HGTPPOAgent(
         action_size=action_size,
         hidden_dim=64,
         num_layers=2,
         num_heads=4,
+        job_input_dim=len(feature_names_for(feature_set)),
     )
 
 
@@ -296,6 +363,9 @@ def checkpoint_payload(
     curve: list[EvaluationPoint],
     best_ppo_f: float,
     library_name: str,
+    library_source: dict[str, str],
+    seed: int,
+    base_seed: int,
     validation_metrics: dict | None = None,
 ) -> dict:
     schedule_index = max(0, completed_updates - 1)
@@ -318,6 +388,10 @@ def checkpoint_payload(
         "evaluation_curve": [asdict(point) for point in curve],
         "best_ppo_f": best_ppo_f,
         "library_name": library_name,
+        "library_source": library_source,
+        "seed": seed,
+        "base_seed": base_seed,
+        "feature_set": trainer.feature_set,
         "validation_metrics": validation_metrics,
         "python_random_state": random.getstate(),
         "torch_random_state": torch.random.get_rng_state(),
@@ -333,6 +407,89 @@ def load_checkpoint(path: Path) -> dict:
     if not path.exists():
         raise FileNotFoundError(f"resume checkpoint does not exist: {path}")
     return torch.load(path, map_location="cpu", weights_only=False)
+
+
+def validate_checkpoint_metadata(
+    state: dict,
+    *,
+    library_name: str,
+    library_source: dict[str, str],
+    seed: int,
+    base_seed: int,
+    checkpoint_label: str,
+) -> None:
+    """Validate that a checkpoint belongs to the requested evaluation run."""
+
+    saved_source = state.get("library_source")
+    if saved_source is not None:
+        if saved_source != library_source:
+            raise ValueError(
+                f"{checkpoint_label} library source mismatch: "
+                f"checkpoint={saved_source}, requested={library_source}"
+            )
+    else:
+        saved_library = state.get("library_name")
+        if saved_library is not None and saved_library != library_name:
+            raise ValueError(
+                f"{checkpoint_label} library mismatch: "
+                f"checkpoint={saved_library}, requested={library_name}"
+            )
+
+    saved_seed = state.get("seed")
+    if saved_seed is not None and int(saved_seed) != seed:
+        raise ValueError(
+            f"{checkpoint_label} seed mismatch: "
+            f"checkpoint={saved_seed}, requested={seed}"
+        )
+    saved_base_seed = state.get("base_seed")
+    if saved_base_seed is not None and int(saved_base_seed) != base_seed:
+        raise ValueError(
+            f"{checkpoint_label} base_seed mismatch: "
+            f"checkpoint={saved_base_seed}, requested={base_seed}"
+        )
+
+
+def write_test_results_csv(
+    path: Path,
+    *,
+    seeds,
+    fixed_results: dict[str, list[float]],
+    random_values: list[float],
+    best_greedy: PolicyEvaluation,
+    best_sampled: PolicyEvaluation,
+    last_greedy: PolicyEvaluation,
+    last_sampled: PolicyEvaluation,
+) -> None:
+    """Export aligned per-instance fixed, random, and PPO objectives."""
+
+    seeds = tuple(seeds)
+    columns: dict[str, list[float]] = {
+        **fixed_results,
+        "random_mean_10": random_values,
+        "best_greedy": best_greedy.values,
+        "best_sampled_mean_5": best_sampled.values,
+        "last_greedy": last_greedy.values,
+        "last_sampled_mean_5": last_sampled.values,
+    }
+    if best_greedy.tt_values is not None and best_greedy.wsf_values is not None:
+        columns["best_greedy_TT"] = best_greedy.tt_values
+        columns["best_greedy_WSF"] = best_greedy.wsf_values
+    expected = len(seeds)
+    for name, values in columns.items():
+        if len(values) != expected:
+            raise ValueError(
+                f"CSV column {name!r} has {len(values)} values; "
+                f"expected {expected}"
+            )
+
+    path.parent.mkdir(parents=True, exist_ok=True)
+    with path.open("w", encoding="utf-8", newline="") as handle:
+        writer = csv.writer(handle)
+        writer.writerow(("seed", *columns))
+        for index, seed in enumerate(seeds):
+            writer.writerow(
+                (seed, *(columns[name][index] for name in columns))
+            )
 
 
 def _policy_comparison(
@@ -381,6 +538,29 @@ def _print_policy_result(
     print(f"    规则使用分布={result.usage}")
 
 
+def _print_policy_subset_result(
+    label: str,
+    values: list[float],
+    fixed_values: list[float],
+    *,
+    bootstrap_seed: int,
+) -> None:
+    mean_f, gap, wins, difference, low, high = _policy_comparison(
+        values,
+        fixed_values,
+        bootstrap_seed=bootstrap_seed,
+    )
+    count = len(values)
+    print(
+        f"  {label:<24} F={mean_f:.2f}, vs固定={gap:+.1f}%, "
+        f"胜率={wins}/{count}={wins / count * 100:.1f}%"
+    )
+    print(
+        f"    配对差值均值={difference:+.2f}, "
+        f"95% CI [{low:+.2f}, {high:+.2f}]"
+    )
+
+
 def print_test_report(
     *,
     library,
@@ -388,6 +568,9 @@ def print_test_report(
     best_agent,
     last_agent,
     test_instances,
+    output_csv: Path | None = None,
+    output_summary: Path | None = None,
+    feature_set: str = "theory11",
 ) -> None:
     print("\n" + "=" * 118)
     print(
@@ -397,9 +580,17 @@ def print_test_report(
 
     fixed_results = fixed_rule_results(library, test_instances)
     fixed_means = means_by_rule(fixed_results)
-    all_six_means = means_by_rule(
-        fixed_rule_results(all_six_library, test_instances)
-    )
+    selected_names = set(fixed_results)
+    reference_results = {
+        rule.name: [evaluate_single_rule(rule, instance) for instance in test_instances]
+        for rule in all_six_library.rules
+        if rule.name not in selected_names
+    }
+    all_fixed_results = {**fixed_results, **reference_results}
+    all_six_means = {
+        name: sum(all_fixed_results[name]) / len(all_fixed_results[name])
+        for name in (rule.name for rule in all_six_library.rules)
+    }
     best_fixed_name = min(fixed_means, key=fixed_means.get)
     best_fixed_mean = fixed_means[best_fixed_name]
     best_fixed_per_instance = fixed_results[best_fixed_name]
@@ -416,7 +607,7 @@ def print_test_report(
         for test_seed, instance in zip(TEST_SEEDS, test_instances, strict=True)
     ]
     best_greedy = evaluate_policy(
-        best_agent, library, test_instances, greedy=True
+        best_agent, library, test_instances, greedy=True, feature_set=feature_set
     )
     best_sampled = evaluate_policy(
         best_agent,
@@ -425,9 +616,10 @@ def print_test_report(
         greedy=False,
         repeats=5,
         base_seed=30_000_000,
+        feature_set=feature_set,
     )
     last_greedy = evaluate_policy(
-        last_agent, library, test_instances, greedy=True
+        last_agent, library, test_instances, greedy=True, feature_set=feature_set
     )
     last_sampled = evaluate_policy(
         last_agent,
@@ -436,8 +628,43 @@ def print_test_report(
         greedy=False,
         repeats=5,
         base_seed=40_000_000,
+        feature_set=feature_set,
     )
     random_mean = sum(random_per_instance) / len(random_per_instance)
+
+    if output_csv is not None:
+        write_test_results_csv(
+            output_csv,
+            seeds=TEST_SEEDS,
+            fixed_results=all_fixed_results,
+            random_values=random_per_instance,
+            best_greedy=best_greedy,
+            best_sampled=best_sampled,
+            last_greedy=last_greedy,
+            last_sampled=last_sampled,
+        )
+    if output_summary is not None:
+        output_summary.parent.mkdir(parents=True, exist_ok=True)
+        output_summary.write_text(
+            json.dumps(
+                {
+                    "best_greedy": asdict(best_greedy),
+                    "best_sampled": asdict(best_sampled),
+                    "last_greedy": asdict(last_greedy),
+                    "last_sampled": asdict(last_sampled),
+                    "metrics": {
+                        "best_state_total_variation": best_greedy.total_variation,
+                        "best_state_switch_rate": best_greedy.switch_rate,
+                        "last_state_total_variation": last_greedy.total_variation,
+                        "last_state_switch_rate": last_greedy.switch_rate,
+                    },
+                },
+                ensure_ascii=False,
+                indent=2,
+            )
+            + "\n",
+            encoding="utf-8",
+        )
 
     print("六条固定规则的参考平均 F:")
     for name, value in all_six_means.items():
@@ -447,6 +674,12 @@ def print_test_report(
         f"\n所选规则库的最优固定规则: {best_fixed_name} "
         f"(平均 F={best_fixed_mean:.2f})"
     )
+    service_value_mean = all_six_means.get("service_value")
+    if service_value_mean is not None:
+        print(
+            "  跨库参考—手写 service_value: "
+            f"F={service_value_mean:.2f}"
+        )
     print(f"  随机策略(10次均值): F={random_mean:.2f}")
     _print_policy_result(
         "best 贪心",
@@ -472,11 +705,106 @@ def print_test_report(
         best_fixed_per_instance,
         bootstrap_seed=20_261_023,
     )
+
+    subset_size = min(30, len(test_instances))
+    subset_fixed = best_fixed_per_instance[:subset_size]
+    print(
+        f"\n测试集前{subset_size}个实例 "
+        f"(seeds {TEST_SEEDS[0]}-{TEST_SEEDS[subset_size - 1]}):"
+    )
+    _print_policy_subset_result(
+        "best 贪心",
+        best_greedy.values[:subset_size],
+        subset_fixed,
+        bootstrap_seed=20_261_030,
+    )
+    _print_policy_subset_result(
+        "best 采样(5次均值)",
+        best_sampled.values[:subset_size],
+        subset_fixed,
+        bootstrap_seed=20_261_031,
+    )
+    _print_policy_subset_result(
+        "last 贪心",
+        last_greedy.values[:subset_size],
+        subset_fixed,
+        bootstrap_seed=20_261_032,
+    )
+    _print_policy_subset_result(
+        "last 采样(5次均值)",
+        last_sampled.values[:subset_size],
+        subset_fixed,
+        bootstrap_seed=20_261_033,
+    )
     print(
         f"\n最佳检查点状态敏感度(TV): "
         f"{best_greedy.total_variation:.4f}"
     )
     print(f"最佳检查点切换率: {best_greedy.switch_rate:.2%}")
+    if output_csv is not None:
+        print(f"逐实例结果已导出: {output_csv.resolve()}")
+
+
+def run_evaluation_only(args: argparse.Namespace) -> None:
+    """Load existing best/last checkpoints and evaluate without training."""
+
+    library_file = getattr(args, "library_file", None)
+    library_name = args.library if library_file is None else "json"
+    library_source = library_source_metadata(args.library, library_file)
+    seed = int(getattr(args, "seed", 42))
+    base_seed = int(getattr(args, "base_seed", TRAIN_BASE_SEED))
+    feature_set = getattr(args, "feature_set", "theory11")
+    library, all_six_library = select_rule_library(args.library, library_file)
+
+    best_path = Path(args.best_checkpoint_path)
+    last_path = Path(args.last_checkpoint_path)
+    best_state = load_checkpoint(best_path)
+    last_state = load_checkpoint(last_path)
+    for label, state in (("best checkpoint", best_state), ("last checkpoint", last_state)):
+        validate_checkpoint_metadata(
+            state,
+            library_name=library_name,
+            library_source=library_source,
+            seed=seed,
+            base_seed=base_seed,
+            checkpoint_label=label,
+        )
+        if state.get("feature_set", "theory11") != feature_set:
+            raise ValueError(
+                f"{label} feature_set mismatch: "
+                f"checkpoint={state.get('feature_set', 'theory11')}, "
+                f"requested={feature_set}"
+            )
+
+    best_agent = new_agent(library.action_size(), feature_set)
+    last_agent = new_agent(library.action_size(), feature_set)
+    best_agent.load_state_dict(best_state["agent_state_dict"])
+    last_agent.load_state_dict(last_state["agent_state_dict"])
+    test_instances = [make_stream_instance(test_seed) for test_seed in TEST_SEEDS]
+
+    print("=" * 118)
+    print("PPO 仅评估模式（不训练、不修改检查点）")
+    print("=" * 118)
+    print(f"规则库: {library_source} ({library.action_size()} actions)")
+    print(f"检查点: best={best_path.resolve()}")
+    print(f"          last={last_path.resolve()}")
+    print(f"随机种子: network/sampling={seed}, instance_base={base_seed}")
+    print_test_report(
+        library=library,
+        all_six_library=all_six_library,
+        best_agent=best_agent,
+        last_agent=last_agent,
+        test_instances=test_instances,
+        output_csv=Path(args.test_csv_path),
+        output_summary=Path(
+            getattr(
+                args,
+                "test_summary_path",
+                Path(args.test_csv_path).with_suffix(".json"),
+            )
+        ),
+        feature_set=feature_set,
+    )
 
 
 def run_training(args: argparse.Namespace) -> None:
@@ -486,7 +814,63 @@ def run_training(args: argparse.Namespace) -> None:
         raise ValueError("eval_interval must be positive")
 
     total_updates = math.ceil(args.episodes / args.episodes_per_update)
-    library, all_six_library = select_rule_library(args.library)
+    library_file = getattr(args, "library_file", None)
+    library_name = args.library if library_file is None else "json"
+    source_metadata = library_source_metadata(args.library, library_file)
+    seed = int(getattr(args, "seed", 42))
+    base_seed = int(getattr(args, "base_seed", TRAIN_BASE_SEED))
+    feature_set = getattr(args, "feature_set", "theory11")
+    library, all_six_library = select_rule_library(
+        args.library, library_file
+    )
+    library_hash = file_sha256(library_file)
+    if library_hash is None:
+        canonical_library = json.dumps(
+            [rule.to_dict() for rule in library.rules],
+            ensure_ascii=False,
+            sort_keys=True,
+            separators=(",", ":"),
+        ).encode("utf-8")
+        library_hash = hashlib.sha256(canonical_library).hexdigest()
+    manifest_path = Path(
+        getattr(
+            args,
+            "manifest_path",
+            Path(args.last_checkpoint_path).with_name(
+                f"{getattr(args, 'file_prefix', '')}train_manifest.json"
+            ),
+        )
+    )
+    write_manifest(
+        manifest_path,
+        {
+            "kind": "ppo_training",
+            "tag": getattr(args, "tag", ""),
+            "library_source": source_metadata,
+            "library_sha256": library_hash,
+            "seeds": {
+                "network": seed,
+                "training_base": base_seed,
+                "validation": list(VALIDATION_SEEDS),
+                "test": list(TEST_SEEDS),
+            },
+            "config": {
+                "episodes": args.episodes,
+                "episodes_per_update": args.episodes_per_update,
+                "gamma": 0.99,
+                "gae_lambda": 0.95,
+                "epochs_per_update": 4,
+                "reward_scale": 10.0,
+                "learning_rate": [LR_START, LR_END],
+                "entropy_coef": [ENTROPY_START, ENTROPY_END],
+                "hidden_dim": 64,
+                "num_layers": 2,
+                "num_heads": 4,
+                "feature_set": feature_set,
+            },
+            "status": "started",
+        },
+    )
     validation_instances = [
         make_stream_instance(seed) for seed in VALIDATION_SEEDS
     ]
@@ -495,21 +879,22 @@ def run_training(args: argparse.Namespace) -> None:
     validation_best_name = min(validation_means, key=validation_means.get)
     validation_best_mean = validation_means[validation_best_name]
 
-    random.seed(42)
-    torch.manual_seed(42)
-    agent = new_agent(library.action_size())
+    random.seed(seed)
+    torch.manual_seed(seed)
+    agent = new_agent(library.action_size(), feature_set)
     trainer = PPOTrainer(
         agent=agent,
         library=library,
         instances=[],
         instance_factory=make_stream_instance,
-        base_seed=TRAIN_BASE_SEED,
+        base_seed=base_seed,
         lr=LR_START,
         gamma=0.99,
         gae_lambda=0.95,
         epochs_per_update=4,
         reward_scale=10.0,
         entropy_coef=ENTROPY_START,
+        feature_set=feature_set,
     )
 
     completed_updates = 0
@@ -541,12 +926,35 @@ def run_training(args: argparse.Namespace) -> None:
                 f"checkpoint={saved_batch_size}, "
                 f"requested={args.episodes_per_update}"
             )
+        saved_source = state.get("library_source")
+        if saved_source is not None and saved_source != source_metadata:
+            raise ValueError(
+                f"resume library source mismatch: checkpoint={saved_source}, "
+                f"requested={source_metadata}"
+            )
         saved_library = state.get("library_name")
-        if saved_library is not None and saved_library != args.library:
+        if (
+            saved_source is None
+            and saved_library is not None
+            and saved_library != library_name
+        ):
             raise ValueError(
                 f"resume library mismatch: checkpoint={saved_library}, "
-                f"requested={args.library}"
+                f"requested={library_name}"
             )
+        saved_seed = state.get("seed")
+        if saved_seed is not None and int(saved_seed) != seed:
+            raise ValueError(
+                f"resume seed mismatch: checkpoint={saved_seed}, requested={seed}"
+            )
+        saved_base_seed = state.get("base_seed")
+        if saved_base_seed is not None and int(saved_base_seed) != base_seed:
+            raise ValueError(
+                "resume base_seed mismatch: "
+                f"checkpoint={saved_base_seed}, requested={base_seed}"
+            )
+        if state.get("feature_set", "theory11") != feature_set:
+            raise ValueError("resume checkpoint feature_set mismatch")
         agent.load_state_dict(state["agent_state_dict"])
         trainer.optimizer.load_state_dict(state["optimizer_state_dict"])
         completed_updates = int(state["completed_updates"])
@@ -569,7 +977,8 @@ def run_training(args: argparse.Namespace) -> None:
     print("=" * 118)
     print("规模: 15 jobs, 5 machines, 2 entities")
     print(
-        f"规则库: {args.library} ({library.action_size()} actions), tag={args.tag or '<empty>'}"
+        f"规则库: {source_metadata} "
+        f"({library.action_size()} actions), tag={args.tag or '<empty>'}"
     )
     print(
         f"训练: {args.episodes} episodes, "
@@ -581,6 +990,7 @@ def run_training(args: argparse.Namespace) -> None:
             f"{args.episodes % args.episodes_per_update} episodes"
         )
     print(f"已完成 updates: {completed_updates}")
+    print(f"随机种子: network/sampling={seed}, instance_base={base_seed}")
     print(f"验证 seeds: {VALIDATION_SEEDS[0]}..{VALIDATION_SEEDS[-1]}")
     print(
         f"测试 seeds: {TEST_SEEDS[0]}..{TEST_SEEDS[-1]} "
@@ -636,6 +1046,7 @@ def run_training(args: argparse.Namespace) -> None:
                 library,
                 validation_instances,
                 greedy=True,
+                feature_set=feature_set,
             )
             sampled_result = evaluate_policy(
                 agent,
@@ -644,6 +1055,7 @@ def run_training(args: argparse.Namespace) -> None:
                 greedy=False,
                 repeats=5,
                 base_seed=10_000_000 + completed_updates * 10_000,
+                feature_set=feature_set,
             )
             ppo_mean = sum(greedy_result.values) / len(greedy_result.values)
             sampled_mean = (
@@ -686,7 +1098,10 @@ def run_training(args: argparse.Namespace) -> None:
                         stats_history=stats_history,
                         curve=curve,
                         best_ppo_f=best_ppo_f,
-                        library_name=args.library,
+                        library_name=library_name,
+                        library_source=source_metadata,
+                        seed=seed,
+                        base_seed=base_seed,
                         validation_metrics=validation_metrics,
                     ),
                 )
@@ -713,7 +1128,10 @@ def run_training(args: argparse.Namespace) -> None:
             stats_history=stats_history,
             curve=curve,
             best_ppo_f=best_ppo_f,
-            library_name=args.library,
+            library_name=library_name,
+            library_source=source_metadata,
+            seed=seed,
+            base_seed=base_seed,
             validation_metrics=validation_metrics,
         )
         if should_evaluate:
@@ -739,7 +1157,10 @@ def run_training(args: argparse.Namespace) -> None:
                 stats_history=stats_history,
                 curve=curve,
                 best_ppo_f=best_ppo_f,
-                library_name=args.library,
+                library_name=library_name,
+                library_source=source_metadata,
+                seed=seed,
+                base_seed=base_seed,
             ),
         )
         print(
@@ -782,8 +1203,8 @@ def run_training(args: argparse.Namespace) -> None:
     print("\n训练完成，开始仅一次的独立测试集评估...", flush=True)
     best_state = load_checkpoint(Path(args.best_checkpoint_path))
     last_state = load_checkpoint(last_path)
-    best_agent = new_agent(library.action_size())
-    last_agent = new_agent(library.action_size())
+    best_agent = new_agent(library.action_size(), feature_set)
+    last_agent = new_agent(library.action_size(), feature_set)
     best_agent.load_state_dict(best_state["agent_state_dict"])
     last_agent.load_state_dict(last_state["agent_state_dict"])
     test_instances = [make_stream_instance(seed) for seed in TEST_SEEDS]
@@ -793,14 +1214,35 @@ def run_training(args: argparse.Namespace) -> None:
         best_agent=best_agent,
         last_agent=last_agent,
         test_instances=test_instances,
+        output_csv=Path(args.test_csv_path),
+        output_summary=Path(args.test_summary_path),
+        feature_set=feature_set,
     )
 
 
 def parse_args() -> argparse.Namespace:
     base = Path(__file__).resolve().parent
     parser = argparse.ArgumentParser()
-    parser.add_argument("--library", choices=("all6", "top3"), default="all6")
+    library_group = parser.add_mutually_exclusive_group()
+    library_group.add_argument(
+        "--library", choices=("all6", "top3"), default=None
+    )
+    library_group.add_argument("--library_file", "--library-file", dest="library_file")
     parser.add_argument("--tag", default="")
+    parser.add_argument(
+        "--seed",
+        type=int,
+        default=42,
+        help="network initialisation and policy-sampling seed",
+    )
+    parser.add_argument(
+        "--base_seed",
+        "--base-seed",
+        dest="base_seed",
+        type=int,
+        default=TRAIN_BASE_SEED,
+        help="first streaming training-instance seed",
+    )
     parser.add_argument(
         "--episodes",
         "--total-episodes",
@@ -817,10 +1259,28 @@ def parse_args() -> argparse.Namespace:
     )
     parser.add_argument("--eval-interval", type=int, default=10)
     parser.add_argument("--resume", action="store_true")
+    parser.add_argument(
+        "--feature_set",
+        "--feature-set",
+        dest="feature_set",
+        choices=("theory11", "theory11_plus3"),
+        default="theory11",
+    )
+    parser.add_argument(
+        "--eval_only",
+        "--eval-only",
+        dest="eval_only",
+        action="store_true",
+        help="evaluate existing best/last checkpoints without training",
+    )
     parser.add_argument("--max-updates-this-run", type=int)
     args = parser.parse_args()
+    if args.library is None and args.library_file is None:
+        args.library = "all6"
     if any(character not in "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789_-" for character in args.tag):
         parser.error("--tag may contain only letters, digits, '_' and '-'")
+    if args.eval_only and args.resume:
+        parser.error("--eval_only and --resume are mutually exclusive")
     args.file_prefix = f"{args.tag}_" if args.tag else ""
     args.log_path = str(base / f"{args.file_prefix}train_streaming.log")
     args.best_checkpoint_path = str(
@@ -829,6 +1289,13 @@ def parse_args() -> argparse.Namespace:
     args.last_checkpoint_path = str(
         base / f"{args.file_prefix}last_ppo.pt"
     )
+    args.test_csv_path = str(
+        base / f"{args.file_prefix}test_per_instance.csv"
+    )
+    args.test_summary_path = str(
+        base / f"{args.file_prefix}test_summary.json"
+    )
+    args.manifest_path = str(base / f"{args.file_prefix}train_manifest.json")
     return args
 
 
@@ -837,12 +1304,15 @@ def main() -> None:
     log_path = Path(args.log_path)
     log_path.parent.mkdir(parents=True, exist_ok=True)
     original_stdout, original_stderr = sys.stdout, sys.stderr
-    mode = "a" if args.resume else "w"
+    mode = "a" if args.resume or args.eval_only else "w"
     with log_path.open(mode, encoding="utf-8", buffering=1) as log_file:
         sys.stdout = Tee(original_stdout, log_file)
         sys.stderr = Tee(original_stderr, log_file)
         try:
-            run_training(args)
+            if args.eval_only:
+                run_evaluation_only(args)
+            else:
+                run_training(args)
         finally:
             sys.stdout, sys.stderr = original_stdout, original_stderr
 

@@ -1,0 +1,404 @@
+{
+  "schema_version": 1,
+  "tag": "qwen1",
+  "completed_rounds": 4,
+  "candidate_total": 40,
+  "parsed_total": 38,
+  "reason_counts": {
+    "unsafe_expression": 2,
+    "constant_priority": 1,
+    "behavior_duplicate": 0
+  },
+  "candidates": [
+    {
+      "rule": {
+        "name": "urgent_tardiness_focus",
+        "expression": "-tardiness_exposure",
+        "rule_type": 1,
+        "priority_expr": "-tardiness_exposure"
+      },
+      "objective": 321.0095609516591,
+      "iteration": 0
+    },
+    {
+      "rule": {
+        "name": "slack_based_dispatch",
+        "expression": "due_date_slack",
+        "rule_type": 1,
+        "priority_expr": "due_date_slack"
+      },
+      "objective": 327.535477919105,
+      "iteration": 0
+    },
+    {
+      "rule": {
+        "name": "conditional_capacity_relief",
+        "expression": "-capacity_pressure",
+        "rule_type": 2,
+        "priority_expr": "-capacity_pressure",
+        "cond_expr": "capacity_flag == 1"
+      },
+      "objective": 427.2058178264477,
+      "iteration": 0
+    },
+    {
+      "rule": {
+        "name": "conditional_forecast_recovery",
+        "expression": "-forecast_deficit",
+        "rule_type": 2,
+        "priority_expr": "-forecast_deficit",
+        "cond_expr": "forecast_flag == 1"
+      },
+      "objective": 386.64798769726656,
+      "iteration": 0
+    },
+    {
+      "rule": {
+        "name": "weighted_service_balance",
+        "expression": "0.4 * multi_checkpoint_value + 0.3 * quantity_contribution - 0.3 * tardiness_exposure",
+        "rule_type": 3,
+        "priority_expr": "0.4 * multi_checkpoint_value + 0.3 * quantity_contribution - 0.3 * tardiness_exposure"
+      },
+      "objective": 294.25994657545203,
+      "iteration": 0
+    },
+    {
+      "rule": {
+        "name": "hybrid_urgency_pressure",
+        "expression": "0.5 * checkpoint_slack_urgency + 0.5 * gap_pressure",
+        "rule_type": 3,
+        "priority_expr": "0.5 * checkpoint_slack_urgency + 0.5 * gap_pressure"
+      },
+      "objective": 357.7095609516591,
+      "iteration": 0
+    },
+    {
+      "rule": {
+        "name": "filter_high_value_jobs",
+        "expression": "-due_date_slack",
+        "rule_type": 4,
+        "priority_expr": "-due_date_slack",
+        "filter_expr": "multi_checkpoint_value > 0.7"
+      },
+      "objective": 346.9058178264476,
+      "iteration": 0
+    },
+    {
+      "rule": {
+        "name": "filter_critical_gap",
+        "expression": "-checkpoint_slack_urgency",
+        "rule_type": 4,
+        "priority_expr": "-checkpoint_slack_urgency",
+        "filter_expr": "gap_pressure > 0.8"
+      },
+      "objective": 357.05581782644765,
+      "iteration": 0
+    },
+    {
+      "rule": {
+        "name": "adaptive_tardiness_gate",
+        "expression": "-tardiness_exposure * math.exp(gap_pressure)",
+        "rule_type": 2,
+        "priority_expr": "-tardiness_exposure * math.exp(gap_pressure)",
+        "cond_expr": "tardiness_exposure > 0.5"
+      },
+      "objective": 413.85581782644766,
+      "iteration": 0
+    },
+    {
+      "rule": {
+        "name": "filtered_efficiency_boost",
+        "expression": "quantity_contribution",
+        "rule_type": 4,
+        "priority_expr": "quantity_contribution",
+        "cond_expr": "capacity_flag == 0",
+        "filter_expr": "processing_ratio < 0.2"
+      },
+      "objective": 346.7058178264476,
+      "iteration": 0
+    },
+    {
+      "rule": {
+        "name": "aggressive_checkpoint_closer",
+        "expression": "-checkpoint_slack_urgency * (1 + gap_pressure)",
+        "rule_type": 1,
+        "priority_expr": "-checkpoint_slack_urgency * (1 + gap_pressure)"
+      },
+      "objective": 425.80581782644765,
+      "iteration": 1
+    },
+    {
+      "rule": {
+        "name": "deficit_driven_priority",
+        "expression": "forecast_deficit * quantity_contribution",
+        "rule_type": 1,
+        "priority_expr": "forecast_deficit * quantity_contribution"
+      },
+      "objective": 326.55581782644765,
+      "iteration": 1
+    },
+    {
+      "rule": {
+        "name": "conditional_tardiness_avoidance",
+        "expression": "-due_date_slack * math.exp(tardiness_exposure)",
+        "rule_type": 2,
+        "priority_expr": "-due_date_slack * math.exp(tardiness_exposure)",
+        "cond_expr": "tardiness_exposure > 0.5"
+      },
+      "objective": 419.2058178264477,
+      "iteration": 1
+    },
+    {
+      "rule": {
+        "name": "conditional_capacity_saver",
+        "expression": "-processing_ratio * capacity_pressure",
+        "rule_type": 2,
+        "priority_expr": "-processing_ratio * capacity_pressure",
+        "cond_expr": "capacity_pressure > 0.8"
+      },
+      "objective": 438.60581782644766,
+      "iteration": 1
+    },
+    {
+      "rule": {
+        "name": "multi_value_service_mix",
+        "expression": "0.6 * multi_checkpoint_value + 0.2 * quantity_contribution - 0.2 * forecast_deficit",
+        "rule_type": 3,
+        "priority_expr": "0.6 * multi_checkpoint_value + 0.2 * quantity_contribution - 0.2 * forecast_deficit"
+      },
+      "objective": 308.06728791458033,
+      "iteration": 1
+    },
+    {
+      "rule": {
+        "name": "urgency_slack_blend",
+        "expression": "0.4 * checkpoint_slack_urgency + 0.3 * due_date_slack + 0.3 * gap_pressure",
+        "rule_type": 3,
+        "priority_expr": "0.4 * checkpoint_slack_urgency + 0.3 * due_date_slack + 0.3 * gap_pressure"
+      },
+      "objective": 348.4595609516591,
+      "iteration": 1
+    },
+    {
+      "rule": {
+        "name": "filtered_high_value_jobs",
+        "expression": "quantity_contribution * (1 - processing_ratio)",
+        "rule_type": 4,
+        "priority_expr": "quantity_contribution * (1 - processing_ratio)",
+        "filter_expr": "multi_checkpoint_value > 0.7"
+      },
+      "objective": 346.9058178264476,
+      "iteration": 1
+    },
+    {
+      "rule": {
+        "name": "balanced_risk_mitigation",
+        "expression": "0.5 * (-tardiness_exposure) + 0.3 * (-capacity_pressure) + 0.2 * due_date_slack",
+        "rule_type": 3,
+        "priority_expr": "0.5 * (-tardiness_exposure) + 0.3 * (-capacity_pressure) + 0.2 * due_date_slack"
+      },
+      "objective": 354.6322413417132,
+      "iteration": 1
+    },
+    {
+      "rule": {
+        "name": "capacity_constrained_filter",
+        "expression": "-capacity_pressure * (1 + gap_pressure)",
+        "rule_type": 4,
+        "priority_expr": "-capacity_pressure * (1 + gap_pressure)",
+        "filter_expr": "capacity_flag == 1"
+      },
+      "objective": 339.6595609516591,
+      "iteration": 2
+    },
+    {
+      "rule": {
+        "name": "forecast_insufficiency_filter",
+        "expression": "-forecast_deficit * quantity_contribution",
+        "rule_type": 4,
+        "priority_expr": "-forecast_deficit * quantity_contribution",
+        "filter_expr": "forecast_flag == 1"
+      },
+      "objective": 316.05956095165914,
+      "iteration": 2
+    },
+    {
+      "rule": {
+        "name": "critical_checkpoint_urgency_conditional",
+        "expression": "-checkpoint_slack_urgency * multi_checkpoint_value",
+        "rule_type": 2,
+        "priority_expr": "-checkpoint_slack_urgency * multi_checkpoint_value",
+        "cond_expr": "checkpoint_slack_urgency > 0.8"
+      },
+      "objective": 421.2558178264477,
+      "iteration": 2
+    },
+    {
+      "rule": {
+        "name": "composite_service_risk",
+        "expression": "0.4 * (-tardiness_exposure) + 0.3 * (-gap_pressure) + 0.3 * multi_checkpoint_value",
+        "rule_type": 3,
+        "priority_expr": "0.4 * (-tardiness_exposure) + 0.3 * (-gap_pressure) + 0.3 * multi_checkpoint_value"
+      },
+      "objective": 328.0694828342451,
+      "iteration": 2
+    },
+    {
+      "rule": {
+        "name": "weighted_capacity_deficit",
+        "expression": "0.5 * (-capacity_pressure) + 0.3 * (-forecast_deficit) + 0.2 * quantity_contribution",
+        "rule_type": 3,
+        "priority_expr": "0.5 * (-capacity_pressure) + 0.3 * (-forecast_deficit) + 0.2 * quantity_contribution"
+      },
+      "objective": 418.56588462032835,
+      "iteration": 2
+    },
+    {
+      "rule": {
+        "name": "pure_quantity_maximizer",
+        "expression": "quantity_contribution",
+        "rule_type": 1,
+        "priority_expr": "quantity_contribution"
+      },
+      "objective": 310.05994657545205,
+      "iteration": 2
+    },
+    {
+      "rule": {
+        "name": "pure_processing_efficiency",
+        "expression": "-processing_ratio",
+        "rule_type": 1,
+        "priority_expr": "-processing_ratio"
+      },
+      "objective": 375.4604113782369,
+      "iteration": 2
+    },
+    {
+      "rule": {
+        "name": "slack_gap_balance",
+        "expression": "0.6 * due_date_slack - 0.4 * gap_pressure",
+        "rule_type": 3,
+        "priority_expr": "0.6 * due_date_slack - 0.4 * gap_pressure"
+      },
+      "objective": 327.4822413417132,
+      "iteration": 2
+    },
+    {
+      "rule": {
+        "name": "urgent_deficit_handler",
+        "expression": "-forecast_deficit * (1 + checkpoint_slack_urgency)",
+        "rule_type": 4,
+        "priority_expr": "-forecast_deficit * (1 + checkpoint_slack_urgency)",
+        "cond_expr": "forecast_deficit > 0.5",
+        "filter_expr": "capacity_flag == 0"
+      },
+      "objective": 411.4058178264477,
+      "iteration": 2
+    },
+    {
+      "rule": {
+        "name": "capacity_constrained_urgency",
+        "expression": "-capacity_pressure * checkpoint_slack_urgency",
+        "rule_type": 1,
+        "priority_expr": "-capacity_pressure * checkpoint_slack_urgency"
+      },
+      "objective": 407.00581782644764,
+      "iteration": 3
+    },
+    {
+      "rule": {
+        "name": "deficit_driven_priority",
+        "expression": "-forecast_deficit * gap_pressure",
+        "rule_type": 2,
+        "priority_expr": "-forecast_deficit * gap_pressure",
+        "cond_expr": "forecast_deficit > 0.5"
+      },
+      "objective": 411.4058178264477,
+      "iteration": 3
+    },
+    {
+      "rule": {
+        "name": "multi_value_tardiness_blend",
+        "expression": "0.5 * multi_checkpoint_value - 0.3 * tardiness_exposure - 0.2 * processing_ratio",
+        "rule_type": 3,
+        "priority_expr": "0.5 * multi_checkpoint_value - 0.3 * tardiness_exposure - 0.2 * processing_ratio"
+      },
+      "objective": 314.85987752169933,
+      "iteration": 3
+    },
+    {
+      "rule": {
+        "name": "high_quantity_filter",
+        "expression": "-quantity_contribution * due_date_slack",
+        "rule_type": 4,
+        "priority_expr": "-quantity_contribution * due_date_slack",
+        "filter_expr": "quantity_contribution > 0.7"
+      },
+      "objective": 346.9058178264476,
+      "iteration": 3
+    },
+    {
+      "rule": {
+        "name": "tight_slack_processor",
+        "expression": "-math.exp(-due_date_slack) * processing_ratio",
+        "rule_type": 1,
+        "priority_expr": "-math.exp(-due_date_slack) * processing_ratio"
+      },
+      "objective": 386.10821645857214,
+      "iteration": 3
+    },
+    {
+      "rule": {
+        "name": "conditional_capacity_gate",
+        "expression": "-capacity_pressure * math.log(1 + gap_pressure)",
+        "rule_type": 2,
+        "priority_expr": "-capacity_pressure * math.log(1 + gap_pressure)",
+        "cond_expr": "capacity_flag == 1"
+      },
+      "objective": 427.2058178264477,
+      "iteration": 3
+    },
+    {
+      "rule": {
+        "name": "service_risk_composite",
+        "expression": "0.4 * checkpoint_slack_urgency + 0.4 * forecast_deficit - 0.2 * due_date_slack",
+        "rule_type": 3,
+        "priority_expr": "0.4 * checkpoint_slack_urgency + 0.4 * forecast_deficit - 0.2 * due_date_slack"
+      },
+      "objective": 366.7104113782369,
+      "iteration": 3
+    },
+    {
+      "rule": {
+        "name": "critical_gap_filter",
+        "expression": "-gap_pressure * multi_checkpoint_value",
+        "rule_type": 4,
+        "priority_expr": "-gap_pressure * multi_checkpoint_value",
+        "filter_expr": "gap_pressure > 0.8"
+      },
+      "objective": 359.1558178264477,
+      "iteration": 3
+    },
+    {
+      "rule": {
+        "name": "balanced_efficiency",
+        "expression": "- (processing_ratio + 0.5 * capacity_pressure) / (1 + due_date_slack)",
+        "rule_type": 1,
+        "priority_expr": "- (processing_ratio + 0.5 * capacity_pressure) / (1 + due_date_slack)"
+      },
+      "objective": 396.55581782644765,
+      "iteration": 3
+    },
+    {
+      "rule": {
+        "name": "forecast_aware_conditional",
+        "expression": "-forecast_deficit * quantity_contribution * checkpoint_slack_urgency",
+        "rule_type": 2,
+        "priority_expr": "-forecast_deficit * quantity_contribution * checkpoint_slack_urgency",
+        "cond_expr": "forecast_flag == 1"
+      },
+      "objective": 393.4979876972666,
+      "iteration": 3
+    }
+  ]
+}

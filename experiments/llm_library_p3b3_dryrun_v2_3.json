@@ -1,0 +1,27 @@
+{
+  "rules": [
+    {
+      "name": "dry_r0_6",
+      "expression": "quantity_contribution + forecast_deficit",
+      "rule_type": 4,
+      "priority_expr": "quantity_contribution + forecast_deficit",
+      "cond_expr": "forecast_flag",
+      "filter_expr": "quantity_contribution - 0.05",
+      "feature_set": "theory11_plus3"
+    },
+    {
+      "name": "dry_r0_5",
+      "expression": "capacity_pressure - 0.3 * processing_ratio",
+      "rule_type": 3,
+      "priority_expr": "capacity_pressure - 0.3 * processing_ratio",
+      "feature_set": "theory11_plus3"
+    },
+    {
+      "name": "dry_r0_3",
+      "expression": "-tardiness_exposure + processing_ratio",
+      "rule_type": 2,
+      "priority_expr": "-tardiness_exposure + processing_ratio",
+      "feature_set": "theory11_plus3"
+    }
+  ]
+}

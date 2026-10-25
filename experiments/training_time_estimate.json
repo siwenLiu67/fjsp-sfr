@@ -1,0 +1,32 @@
+[
+  {
+    "scale": "S",
+    "episodes": 20,
+    "update_seconds": 2.609857250005007,
+    "seconds_per_episode": 0.13049286250025033,
+    "estimated_5000_seconds": 652.4643125012517,
+    "estimated_5000_hours": 0.18124008680590326,
+    "library": "experiments/llm_library_pool_S_mix.json",
+    "action_size": 5
+  },
+  {
+    "scale": "M",
+    "episodes": 20,
+    "update_seconds": 5.609772375319153,
+    "seconds_per_episode": 0.28048861876595765,
+    "estimated_5000_seconds": 1402.4430938297883,
+    "estimated_5000_hours": 0.38956752606383005,
+    "library": "experiments/llm_library_pool_M_mix.json",
+    "action_size": 5
+  },
+  {
+    "scale": "L",
+    "episodes": 20,
+    "update_seconds": 13.016216499730945,
+    "seconds_per_episode": 0.6508108249865472,
+    "estimated_5000_seconds": 3254.054124932736,
+    "estimated_5000_hours": 0.9039039235924267,
+    "library": "experiments/llm_library_pool_L_mix.json",
+    "action_size": 4
+  }
+]

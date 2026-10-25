@@ -1,0 +1,72 @@
+{
+  "git_commit": "ff6df71dc3128bbfac66100928b1e8ea03a4df45",
+  "kind": "rule_generation",
+  "tag": "p3b1",
+  "model": "qwen3.7-plus",
+  "temperature": 0.8,
+  "rounds": 4,
+  "per_round": 10,
+  "library_size": 6,
+  "enable_thinking": "false",
+  "dry_run": false,
+  "feature_set": "theory11_plus3",
+  "scale": "M",
+  "difficulty": "service_heavy",
+  "show_classic_reference": true,
+  "seeds": {
+    "selection": [
+      600,
+      601,
+      602,
+      603,
+      604,
+      605,
+      606,
+      607,
+      608,
+      609,
+      610,
+      611,
+      612,
+      613,
+      614,
+      615,
+      616,
+      617,
+      618,
+      619
+    ],
+    "holdout": [
+      700,
+      701,
+      702,
+      703,
+      704,
+      705,
+      706,
+      707,
+      708,
+      709,
+      710,
+      711,
+      712,
+      713,
+      714,
+      715,
+      716,
+      717,
+      718,
+      719
+    ]
+  },
+  "library_files": {
+    "/Volumes/siwen_硬盘/论文/rg-alns/worktrees/fjsp_sfr/experiments/llm_library_p3b1_6.json": "635dd4dead3b6f3cb04b796f6fcceb2820945a6a2b80b01ea7bdc8bcc9b3922a",
+    "/Volumes/siwen_硬盘/论文/rg-alns/worktrees/fjsp_sfr/experiments/llm_library_p3b1_3.json": "191436118cd005a75b20f521c124009b2ebdccfa50a477c92f70ab8539eac4c3"
+  },
+  "llm_api_request_count": 4,
+  "llm_token_usage": {
+    "total_tokens": 9953,
+    "completion_tokens": 1996,
+    "prompt_tokens": 7957
+  }
+}

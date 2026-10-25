@@ -1,0 +1,25 @@
+{
+  "rules": [
+    {
+      "name": "Deficit_Adjusted_SPT",
+      "expression": "-proc_time * (1.0 + 2.0 * forecast_deficit)",
+      "rule_type": 2,
+      "priority_expr": "-proc_time * (1.0 + 2.0 * forecast_deficit)",
+      "feature_set": "theory11_plus3"
+    },
+    {
+      "name": "Critical_Ratio_Push",
+      "expression": "critical_ratio",
+      "rule_type": 1,
+      "priority_expr": "critical_ratio",
+      "feature_set": "theory11_plus3"
+    },
+    {
+      "name": "Adaptive_Checkpoint_Priority",
+      "expression": "0.35 * checkpoint_slack_urgency + 0.35 * (1.0 - capacity_pressure) + 0.2 * (1.0 - tardiness_exposure) + 0.1 * (1.0 - gap_pressure)",
+      "rule_type": 3,
+      "priority_expr": "0.35 * checkpoint_slack_urgency + 0.35 * (1.0 - capacity_pressure) + 0.2 * (1.0 - tardiness_exposure) + 0.1 * (1.0 - gap_pressure)",
+      "feature_set": "theory11_plus3"
+    }
+  ]
+}

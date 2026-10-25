@@ -1,0 +1,31 @@
+{
+  "library": "random_nogate_mix",
+  "library_file": "experiments/llm_library_random_pool_S_nogate_mix.json",
+  "scale": "S",
+  "eval_scale": "S",
+  "difficulty": "service_heavy",
+  "seed": 2,
+  "selector": "hgt_ppo",
+  "mask_checkpoint": false,
+  "mask_forecast": false,
+  "episodes": 3,
+  "episodes_per_update": 3,
+  "smoke": true,
+  "means": {
+    "F": 288.2404311710773,
+    "TT": 132.33333333333334,
+    "WSF": 155.90709783774403
+  },
+  "std_F": 56.578423862233606,
+  "fixed_action": null,
+  "fixed_rule": null,
+  "training_seconds": 0.42243241611868143,
+  "rule_usage": {
+    "SPT": 61,
+    "random_t1_012": 4
+  },
+  "total_variation": 0.02468320690668546,
+  "switch_rate": 0.06153846153846154,
+  "decision_seconds_mean": 0.00024943516518060975,
+  "per_instance_csv": "/Volumes/siwen_硬盘/论文/rg-alns/worktrees/fjsp_sfr/experiments/formal_smoke/service_heavy_S_random_nogate_mix_hgt_ppo_seed2/per_instance.csv"
+}

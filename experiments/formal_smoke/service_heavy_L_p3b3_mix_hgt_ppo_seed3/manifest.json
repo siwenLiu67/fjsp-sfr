@@ -1,0 +1,26 @@
+{
+  "git_commit": "ff6df71dc3128bbfac66100928b1e8ea03a4df45",
+  "kind": "formal_experiment",
+  "library_sha256": "3f6a7e6b1465b6d43d1b2261be8a4e3030d8862dcb25ec591e9ee61fa3251122",
+  "test_seeds": [
+    10200,
+    10201,
+    10202
+  ],
+  "config": {
+    "library_id": "p3b3_mix",
+    "library_file": "experiments/llm_library_p3b3_L_mix.json",
+    "scale": "L",
+    "eval_scale": null,
+    "difficulty": "service_heavy",
+    "seed": 3,
+    "selector": "hgt_ppo",
+    "episodes": 3,
+    "episodes_per_update": 3,
+    "mask_checkpoint": false,
+    "mask_forecast": false,
+    "checkpoint": null,
+    "output_dir": "experiments/formal_smoke/service_heavy_L_p3b3_mix_hgt_ppo_seed3",
+    "smoke": true
+  }
+}

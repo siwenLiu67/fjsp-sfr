@@ -3,7 +3,7 @@ import math
 from conftest import make_test_instance
 
 from fjsp_sfr.dispatch.symbolic_rule import RuleType, SymbolicRule
-from fjsp_sfr.dispatch.theory_features import THEORY_FEATURE_NAMES
+from fjsp_sfr.dispatch.theory_features import THEORY_FEATURE_NAMES, feature_names_for
 from fjsp_sfr.llm.generator import (
     compute_behavior_similarity,
     evaluate_rule_objective,
@@ -101,6 +101,19 @@ class TestPromptTemplate:
         assert "RULE:" in prompt
         assert "TYPE:" in prompt
         assert "PRIORITY:" in prompt
+        assert "H = <Cond, Filter, Priority>" in prompt
+        assert "<Target" not in prompt
+        assert "FILTER is optional for every rule type" in prompt
+        assert (
+            "COND is evaluated once per decision on the maximum value of each "
+            "feature over the current candidates (not per candidate); FILTER "
+            "and PRIORITY are evaluated per candidate. Higher PRIORITY is "
+            "chosen first."
+        ) in prompt
+        assert (
+            "The default ordering used when COND is false is ascending "
+            "due-date slack."
+        ) in prompt
 
     def test_feature_descriptions_complete(self):
         for name in THEORY_FEATURE_NAMES:
@@ -124,6 +137,43 @@ class TestPromptTemplate:
             feedback="Rule X performed poorly because it ignores tardiness.",
         )
         assert "performed poorly" in prompt
+
+    def test_plus3_prompt_and_parser_use_new_features(self):
+        prompt = build_generation_prompt(
+            num_rules=5, feature_set="theory11_plus3"
+        )
+        for name in ("proc_time", "remaining_work", "critical_ratio"):
+            assert name in prompt
+        text = """
+RULE: spt_like
+TYPE: I
+COND: NONE
+FILTER: NONE
+PRIORITY: -proc_time
+"""
+        rules = parse_llm_output(
+            text, feature_names_for("theory11_plus3")
+        )
+        assert len(rules) == 1
+        assert rules[0].feature_set == "theory11_plus3"
+
+    def test_plus3_prompt_includes_classic_reference_and_decompositions(self):
+        reference = (
+            "- SPT: mean F=10.0, TT=4.0, WSF=6.0\n"
+            "- ATC: mean F=9.0, TT=5.0, WSF=4.0\n"
+            "- DEFAULT: mean F=12.0, TT=7.0, WSF=5.0"
+        )
+        prompt = build_generation_prompt(
+            num_rules=10,
+            feature_set="theory11_plus3",
+            classic_reference=reference,
+        )
+        assert reference in prompt
+        assert "improve on the classic rules" in prompt
+        for name in ("proc_time", "remaining_work", "critical_ratio"):
+            assert FEATURE_DESCRIPTIONS[name] in prompt
+        assert "mean uncompressed" not in prompt
+        assert "arithmetic mean" in prompt
 
 
 class TestEvaluator:

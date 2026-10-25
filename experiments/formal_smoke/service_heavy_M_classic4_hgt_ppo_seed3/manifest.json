@@ -1,0 +1,26 @@
+{
+  "git_commit": "ff6df71dc3128bbfac66100928b1e8ea03a4df45",
+  "kind": "formal_experiment",
+  "library_sha256": "3a8d7ab277b9d798715153cc5c17c85494f52e16be28478a69bd01a9d33fa2ea",
+  "test_seeds": [
+    10100,
+    10101,
+    10102
+  ],
+  "config": {
+    "library_id": "classic4",
+    "library_file": "experiments/classic4_library.json",
+    "scale": "M",
+    "eval_scale": null,
+    "difficulty": "service_heavy",
+    "seed": 3,
+    "selector": "hgt_ppo",
+    "episodes": 3,
+    "episodes_per_update": 3,
+    "mask_checkpoint": false,
+    "mask_forecast": false,
+    "checkpoint": null,
+    "output_dir": "experiments/formal_smoke/service_heavy_M_classic4_hgt_ppo_seed3",
+    "smoke": true
+  }
+}

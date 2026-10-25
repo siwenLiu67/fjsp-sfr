@@ -37,13 +37,14 @@ class GenerationResult:
     accepted_rules: list[SymbolicRule]
 
 
-@lru_cache(maxsize=1)
-def _default_rule() -> SymbolicRule:
+@lru_cache(maxsize=2)
+def _default_rule(feature_set: str = "theory11") -> SymbolicRule:
     return SymbolicRule(
         name="default_due_date_slack",
         expression="due-date slack ascending",
         rule_type=RuleType.TYPE_I,
         priority_expr="-due_date_slack",
+        feature_set=feature_set,
     )
 
 
@@ -62,7 +63,9 @@ def _select_candidate(
     if not factor_rows:
         raise ValueError("cannot select from an empty candidate set")
     selected_rule = (
-        rule if rule.is_applicable(_summary_row(factor_rows)) else _default_rule()
+        rule
+        if rule.is_applicable(_summary_row(factor_rows))
+        else _default_rule(rule.feature_set)
     )
     scores = selected_rule.evaluate_batch(factor_rows)
     best_index = 0
@@ -79,7 +82,10 @@ def _rollout_objective(rule: SymbolicRule, instance: FJSPInstance) -> float:
     env.reset()
     while True:
         factor_rows = build_extended_theory_features(
-            env._problem_view(), env._state, env.current_metrics
+            env._problem_view(),
+            env._state,
+            env.current_metrics,
+            feature_set=rule.feature_set,
         )
         step = env.step_candidate(_select_candidate(rule, factor_rows))
         if step.terminated:
@@ -134,7 +140,10 @@ def compute_behavior_similarity(
         env.reset()
         for _decision in range(max_decisions):
             factor_rows = build_extended_theory_features(
-                env._problem_view(), env._state, env.current_metrics
+                env._problem_view(),
+                env._state,
+                env.current_metrics,
+                feature_set=rule_a.feature_set,
             )
             choice_a = _select_candidate(rule_a, factor_rows)
             choice_b = _select_candidate(rule_b, factor_rows)
@@ -196,11 +205,12 @@ def iterative_rule_generation(
     rules_per_iteration: int = 10,
     library_budget: int = 20,
     similarity_threshold: float = 0.8,
+    feature_set: str = "theory11",
 ) -> tuple[RuleLibrary, list[GenerationResult]]:
     """Algorithm 1 主循环。"""
 
     baseline = evaluate_rule_objective(
-        _default_rule(), instances, num_episodes=1
+        _default_rule(feature_set), instances, num_episodes=1
     )
     accepted_pool: list[SymbolicRule] = []
     results: list[GenerationResult] = []
@@ -212,8 +222,13 @@ def iterative_rule_generation(
             iteration=iteration,
             num_rules=rules_per_iteration,
             feedback=feedback,
+            feature_set=feature_set,
         )
-        generated = parse_llm_output(llm_client.generate(prompt))
+        from fjsp_sfr.dispatch.theory_features import feature_names_for
+
+        generated = parse_llm_output(
+            llm_client.generate(prompt), feature_names_for(feature_set)
+        )
         evaluated = [
             (
                 rule,

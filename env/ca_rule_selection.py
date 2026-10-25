@@ -273,7 +273,12 @@ class CAPPORuleSelectionEnv:
         candidates = tuple(
             sorted(self.current_metrics.candidates, key=lambda item: item.job_id)
         )
-        if hasattr(principle, "rule_type"):
+        if hasattr(principle, "evaluate_candidates"):
+            factor_rows = ()
+            scores = principle.evaluate_candidates(
+                problem, self._state, self.current_metrics
+            )
+        elif hasattr(principle, "rule_type"):
             from fjsp_sfr.dispatch.theory_features import (
                 THEORY_FEATURE_NAMES,
                 build_extended_theory_features,
@@ -284,6 +289,7 @@ class CAPPORuleSelectionEnv:
                 self._state,
                 self.current_metrics,
                 time_scale=self.time_scale,
+                feature_set=getattr(principle, "feature_set", "theory11"),
             )
         else:
             factor_rows = build_theory_factor_values(
@@ -292,15 +298,16 @@ class CAPPORuleSelectionEnv:
                 self.current_metrics,
                 time_scale=self.time_scale,
             )
-        if len(factor_rows) != len(candidates) or not candidates:
-            raise RuntimeError("principle factors must align with current candidates")
-        if hasattr(principle, "is_applicable") and not principle.is_applicable(
-            tuple(max(column) for column in zip(*factor_rows, strict=True))
-        ):
-            slack_index = THEORY_FEATURE_NAMES.index("due_date_slack")
-            scores = [-row[slack_index] for row in factor_rows]
-        else:
-            scores = principle.evaluate_batch(factor_rows)
+        if not hasattr(principle, "evaluate_candidates"):
+            if len(factor_rows) != len(candidates) or not candidates:
+                raise RuntimeError("principle factors must align with current candidates")
+            if hasattr(principle, "is_applicable") and not principle.is_applicable(
+                tuple(max(column) for column in zip(*factor_rows, strict=True))
+            ):
+                slack_index = THEORY_FEATURE_NAMES.index("due_date_slack")
+                scores = [-row[slack_index] for row in factor_rows]
+            else:
+                scores = principle.evaluate_batch(factor_rows)
         if len(scores) != len(candidates):
             raise ValueError("principle must return one score per candidate")
         candidate_index = max(range(len(scores)), key=scores.__getitem__)

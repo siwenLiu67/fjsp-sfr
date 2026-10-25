@@ -91,6 +91,7 @@ class InstanceConfig:
     eligible_machines_range: tuple[int, int] = (1, 3)
     service_commitment_scale_range: tuple[float, float] = (0.8, 1.05)
     job_due_date_factor_range: tuple[float, float] = (0.85, 1.15)
+    checkpoint_weight_scale: float = 1.0
     arrival_intensity: str = "medium"
     arrival_profile_pool: tuple[str, ...] = ARRIVAL_PROFILES
     latent_entity_concentration: float = 4.0
@@ -127,6 +128,8 @@ class InstanceConfig:
             "service_commitment_scale_range", self.service_commitment_scale_range
         )
         _validate_float_range("job_due_date_factor_range", self.job_due_date_factor_range)
+        if self.checkpoint_weight_scale <= 0.0:
+            raise ValueError("checkpoint_weight_scale must be positive")
         if not self.checkpoint_profile_pool:
             raise ValueError("checkpoint_profile_pool must not be empty")
         if any(profile not in DEFAULT_CHECKPOINT_PROFILES for profile in self.checkpoint_profile_pool):
@@ -282,7 +285,11 @@ def generate_instance(
             latent.expected_quantity_by_entity[entity_id] * commitment_scale,
         )
         checkpoints = tuple(
-            Checkpoint(time, final_target * target_ratio, weight)
+            Checkpoint(
+                time,
+                final_target * target_ratio,
+                weight * config.checkpoint_weight_scale,
+            )
             for time, target_ratio, weight in zip(
                 times, profile.target_ratios, profile.weights, strict=True
             )
@@ -521,3 +528,44 @@ def _build_latent_demand_scenario(
         tuple(means),
         profiles,
     )
+
+
+def main() -> None:
+    """Small CLI for inspecting a configured formal instance."""
+
+    import argparse
+    import json
+
+    from fjsp_sfr.generation.scale_config import (
+        add_scale_arguments,
+        make_scaled_instance,
+    )
+
+    parser = argparse.ArgumentParser()
+    add_scale_arguments(parser)
+    parser.add_argument("--seed", type=int, default=42)
+    args = parser.parse_args()
+    instance = make_scaled_instance(
+        args.seed, scale=args.scale, difficulty=args.difficulty
+    )
+    print(
+        json.dumps(
+            {
+                "seed": args.seed,
+                "scale": args.scale,
+                "difficulty": args.difficulty,
+                "jobs": len(instance.jobs),
+                "machines": len(instance.machines),
+                "entities": len(instance.entities),
+                "checkpoints": sum(
+                    len(entity.checkpoints) for entity in instance.entities
+                ),
+            },
+            ensure_ascii=False,
+            indent=2,
+        )
+    )
+
+
+if __name__ == "__main__":
+    main()
