@@ -7,6 +7,15 @@ LLM.  It writes the complete balanced/hard comparison to
 
 from __future__ import annotations
 
+import sys
+from pathlib import Path
+
+_PROJECT_ROOT = Path(__file__).resolve().parents[1]
+_PROJECT_PARENT = _PROJECT_ROOT.parent
+for _import_path in (str(_PROJECT_ROOT), str(_PROJECT_PARENT)):
+    if _import_path not in sys.path:
+        sys.path.insert(0, _import_path)
+
 import hashlib
 from dataclasses import asdict, fields
 from pathlib import Path

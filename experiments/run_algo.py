@@ -2,6 +2,15 @@
 
 from __future__ import annotations
 
+import sys
+from pathlib import Path
+
+_PROJECT_ROOT = Path(__file__).resolve().parents[1]
+_PROJECT_PARENT = _PROJECT_ROOT.parent
+for _import_path in (str(_PROJECT_ROOT), str(_PROJECT_PARENT)):
+    if _import_path not in sys.path:
+        sys.path.insert(0, _import_path)
+
 import argparse
 import csv
 import json
@@ -55,6 +64,14 @@ LIBRARY_ALIASES = {
 
 def resolve_library(value: str) -> Path:
     return Path(LIBRARY_ALIASES.get(value, value))
+
+
+def resolve_runtime_library(value: str) -> Path:
+    path = resolve_library(value)
+    if path.exists() or value == "classic4":
+        return path
+    fallback = resolve_library("classic4")
+    return fallback if fallback.exists() else path
 
 
 def variant_name(args) -> str:
@@ -160,7 +177,13 @@ def run_rolling_seed(args, network_seed: int, run_dir: Path) -> None:
     (run_dir / "COMPLETED").write_text("ok\n", encoding="utf-8")
 
 
-def train_ppo(args, library: RuleLibrary, network_seed: int, run_dir: Path):
+def train_ppo(
+    args,
+    library: RuleLibrary,
+    library_path: Path,
+    network_seed: int,
+    run_dir: Path,
+):
     random.seed(network_seed)
     torch.manual_seed(network_seed)
     agent = make_learning_agent(args.algo, library.action_size())
@@ -174,7 +197,7 @@ def train_ppo(args, library: RuleLibrary, network_seed: int, run_dir: Path):
         mask_checkpoint=args.mask == "checkpoint",
         mask_forecast=args.mask == "forecast",
     )
-    validation_seeds = seed_values("validation_center")
+    validation_seeds = seed_values("validation_center")[: args.n_validation_instances]
     validation_instances = [factory(seed) for seed in validation_seeds]
     updates = math.ceil(args.episodes / args.episodes_per_update)
     curve, started = [], time.perf_counter()
@@ -204,7 +227,7 @@ def train_ppo(args, library: RuleLibrary, network_seed: int, run_dir: Path):
             })
     checkpoint = {
         "agent_state_dict": agent.state_dict(), "algo": args.algo,
-        "library_sha256": file_sha256(resolve_library(args.library)),
+        "library_sha256": file_sha256(library_path),
         "network_seed": network_seed, "episodes": args.episodes,
     }
     torch.save(checkpoint, run_dir / "model_last.pt")
@@ -249,7 +272,7 @@ def load_center_model(args, library: RuleLibrary, network_seed: int):
     center_dir = Path(args.out_root) / "center" / variant_name(args) / f"seed_{network_seed}"
     checkpoint_path = center_dir / "model_last.pt"
     payload = torch.load(checkpoint_path, map_location="cpu", weights_only=False)
-    if payload["library_sha256"] != file_sha256(resolve_library(args.library)):
+    if payload["library_sha256"] != file_sha256(resolve_runtime_library(args.library)):
         raise ValueError("checkpoint rule-library hash mismatch")
     if payload["algo"] != args.algo:
         raise ValueError("checkpoint algorithm mismatch")
@@ -269,7 +292,7 @@ def run_seed(args, network_seed: int) -> None:
     if args.algo == "rolling_ga":
         run_rolling_seed(args, network_seed, run_dir)
         return
-    library_path = resolve_library(args.library)
+    library_path = resolve_runtime_library(args.library)
     if args.algo in CLASSIC_ACTIONS:
         library = build_classic_rule_library()
     else:
@@ -279,7 +302,8 @@ def run_seed(args, network_seed: int) -> None:
     if args.algo in CLASSIC_ACTIONS:
         fixed_action = CLASSIC_ACTIONS[args.algo]
     elif args.algo == "best_single":
-        selection = [make_scenario_instance("center", seed) for seed in seed_values("selection_center")]
+        selection_seeds = seed_values("selection_center")[: max(2, args.n_instances)]
+        selection = [make_scenario_instance("center", seed) for seed in selection_seeds]
         fixed_action = best_fixed_action(library, selection)
     elif args.algo == "random_select":
         selector = "random"
@@ -287,7 +311,9 @@ def run_seed(args, network_seed: int) -> None:
         selector = "dqn" if args.algo in {"hgt_ddqn", "hgt_rainbow"} else args.algo
         if args.eval_set == "center" or args.validation_only:
             if args.algo in {"hgt_ppo", "mlp_ppo"}:
-                agent, curve, training_seconds = train_ppo(args, library, network_seed, run_dir)
+                agent, curve, training_seconds = train_ppo(
+                    args, library, library_path, network_seed, run_dir
+                )
             else:
                 agent, curve, training_seconds = train_value_or_a2c(args, library, network_seed)
                 torch.save({
@@ -300,7 +326,8 @@ def run_seed(args, network_seed: int) -> None:
 
     rows, total_decision_seconds, total_decisions = [], 0.0, 0
     solve_started = time.perf_counter()
-    for scenario_id, instance_seed in evaluation_plan(args):
+    plan = evaluation_plan(args)[: args.n_instances]
+    for scenario_id, instance_seed in plan:
         instance = make_scenario_instance(scenario_id, instance_seed)
         started = time.perf_counter()
         result = evaluate_episode(
@@ -339,7 +366,7 @@ def run_seed(args, network_seed: int) -> None:
     write_manifest(run_dir / "manifest.json", {
         "kind": "run_algo", "config": vars(args), "network_seed": network_seed,
         "library_sha256": file_sha256(library_path) if args.algo not in CLASSIC_ACTIONS else file_sha256("experiments/classic4_library.json"),
-        "evaluation_instances": [(scenario, seed) for scenario, seed in evaluation_plan(args)],
+        "evaluation_instances": plan,
     })
     (run_dir / "run.log").write_text(json.dumps(summary, ensure_ascii=False) + "\n", encoding="utf-8")
     completed.write_text("ok\n", encoding="utf-8")
@@ -368,6 +395,7 @@ def parse_args(argv=None):
     parser.add_argument("--ga_time_probe", action="store_true")
     parser.add_argument("--workers", type=int, default=1)
     parser.add_argument("--n_instances", type=int, default=100)
+    parser.add_argument("--n_validation_instances", type=int, default=50)
     args = parser.parse_args(argv)
     if args.eval_set == "l9" and args.algo in {"hgt_ppo", "mlp_ppo"}:
         pass

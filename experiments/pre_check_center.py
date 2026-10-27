@@ -2,8 +2,18 @@
 
 from __future__ import annotations
 
+import sys
+from pathlib import Path
+
+_PROJECT_ROOT = Path(__file__).resolve().parents[1]
+_PROJECT_PARENT = _PROJECT_ROOT.parent
+for _import_path in (str(_PROJECT_ROOT), str(_PROJECT_PARENT)):
+    if _import_path not in sys.path:
+        sys.path.insert(0, _import_path)
+
 import argparse
 import json
+import tempfile
 from pathlib import Path
 from statistics import fmean
 
@@ -33,12 +43,19 @@ def load_qualified_candidates(paths: tuple[Path, ...]) -> tuple[SymbolicRule, ..
     return tuple(rules)
 
 
-def build_report(candidate_paths: tuple[Path, ...], output: Path) -> None:
-    seeds = seed_values("validation_center")
+def build_report(
+    candidate_paths: tuple[Path, ...],
+    output: Path,
+    *,
+    smoke: bool = False,
+) -> None:
+    seeds = seed_values("validation_center")[:3] if smoke else seed_values("validation_center")
     instances = [make_scenario_instance("center", seed) for seed in seeds]
     classics = classic_rules_with_default()
     handwritten = build_rule_library().rules
     llm = load_qualified_candidates(candidate_paths)
+    if smoke:
+        llm = llm[:3]
     all_rules = (*classics, *handwritten, *llm)
     evaluations = {
         rule.name: [evaluate_rule(rule, instance) for instance in instances]
@@ -63,6 +80,7 @@ def build_report(candidate_paths: tuple[Path, ...], output: Path) -> None:
     lines = ["# Center pre-check", "", f"Qualified LLM candidates: {len(llm)}", "", "| Rank | Rule | Source | F | TT | WSF | ΔSPT [95% CI] | ΔATC [95% CI] |", "|---:|---|---|---:|---:|---:|---:|---:|"]
     for index, row in enumerate(rows[:10], 1):
         lines.append(f"| {index} | {row['name']} | {row['source']} | {row['F']:.3f} | {row['TT']:.3f} | {row['WSF']:.3f} | {row['spt_diff']:.3f} [{row['spt_ci'][0]:.3f}, {row['spt_ci'][1]:.3f}] | {row['atc_diff']:.3f} [{row['atc_ci'][0]:.3f}, {row['atc_ci'][1]:.3f}] |")
+    output.parent.mkdir(parents=True, exist_ok=True)
     output.write_text("\n".join(lines) + "\n", encoding="utf-8")
 
 
@@ -70,7 +88,14 @@ def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--candidates", nargs="*", type=Path, default=DEFAULT_CANDIDATES)
     parser.add_argument("--out", type=Path, default=Path("experiments/pre_check_center.md"))
+    parser.add_argument("--smoke", action="store_true")
     args = parser.parse_args()
+    if args.smoke:
+        with tempfile.TemporaryDirectory(prefix="fjsp-pre-check-smoke-") as raw_dir:
+            output = Path(raw_dir) / "pre_check_center.md"
+            build_report(tuple(args.candidates), output, smoke=True)
+            print(f"smoke output: {output}")
+        return
     build_report(tuple(args.candidates), args.out)
 
 

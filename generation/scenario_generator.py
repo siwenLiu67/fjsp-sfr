@@ -22,6 +22,7 @@ class ScenarioSpec:
     new_jobs: int
     load: float
     ddt: float
+    service_weight_scale: float = 1.0
 
 
 def load_scenario_config(path: Path = CONFIG_PATH) -> dict:
@@ -33,11 +34,21 @@ def scenario_names(path: Path = CONFIG_PATH) -> tuple[str, ...]:
 
 
 def scenario_spec(name: str, path: Path = CONFIG_PATH) -> ScenarioSpec:
+    payload = load_scenario_config(path)
     try:
-        raw = load_scenario_config(path)["scenarios"][name]
+        raw = payload["scenarios"][name]
     except KeyError as error:
         raise ValueError(f"unknown scenario: {name}") from error
-    return ScenarioSpec(int(raw["machines"]), int(raw["new_jobs"]), float(raw["load"]), float(raw["ddt"]))
+    # ``new_jobs`` remains part of ScenarioSpec and make_instance's positional
+    # interface for backward compatibility, but is now fixed across scenarios.
+    new_jobs = int(raw.get("new_jobs", payload["fixed"]["new_jobs"]))
+    return ScenarioSpec(
+        int(raw["machines"]),
+        new_jobs,
+        float(raw["load"]),
+        float(raw["ddt"]),
+        float(raw.get("service_weight_scale", 1.0)),
+    )
 
 
 def seed_values(name: str, path: Path = CONFIG_PATH) -> tuple[int, ...]:
@@ -59,11 +70,17 @@ def _arrival_times(initial_jobs: int, new_jobs: int, mean_interval: float, rng: 
 
 def make_instance(
     machines: int, new_jobs: int, load: float, ddt: float, seed: int,
-    *, config_path: Path = CONFIG_PATH,
+    *, config_path: Path = CONFIG_PATH, service_weight_scale: float = 1.0,
 ) -> FJSPInstance:
     """Generate an instance from machines, new jobs, target load and due tightness."""
 
-    if machines <= 0 or new_jobs < 0 or not 0.0 < load <= 1.0 or ddt <= 0.0:
+    if (
+        machines <= 0
+        or new_jobs < 0
+        or not 0.0 < load <= 1.0
+        or ddt <= 0.0
+        or service_weight_scale <= 0.0
+    ):
         raise ValueError("invalid scenario factors")
     payload = load_scenario_config(config_path)
     fixed, checkpoint_cfg = payload["fixed"], payload["checkpoint"]
@@ -111,7 +128,11 @@ def make_instance(
     tightness = float(checkpoint_cfg["tightness"])
     commitment_ratio = float(checkpoint_cfg["commitment_ratio"])
     first_demand_ratio = float(checkpoint_cfg["first_demand_ratio"])
-    weights = tuple(float(value) for value in checkpoint_cfg["weights"])
+    weight_scale = float(checkpoint_cfg.get("weight_scale", 1.0))
+    weights = tuple(
+        float(value) * weight_scale * float(service_weight_scale)
+        for value in checkpoint_cfg["weights"]
+    )
     for entity_id in range(entity_count):
         group = [item for item in raw_jobs if item["entity_id"] == entity_id]
         final_deadline = max(item["due_date"] for item in group)
@@ -143,13 +164,22 @@ def make_instance(
             "target_load": load, "measured_load": measured_load, "ddt": ddt,
             "mean_arrival_interval": mean_interval, "load_time_window": observation_window,
             "checkpoint": dict(checkpoint_cfg),
+            "service_weight_scale": float(service_weight_scale),
         },
     )
 
 
 def make_scenario_instance(scenario: str = "center", seed: int = 42, *, config_path: Path = CONFIG_PATH) -> FJSPInstance:
     spec = scenario_spec(scenario, config_path)
-    return make_instance(spec.machines, spec.new_jobs, spec.load, spec.ddt, seed, config_path=config_path)
+    return make_instance(
+        spec.machines,
+        spec.new_jobs,
+        spec.load,
+        spec.ddt,
+        seed,
+        config_path=config_path,
+        service_weight_scale=spec.service_weight_scale,
+    )
 
 
 def all_seed_partitions(path: Path = CONFIG_PATH) -> dict[str, tuple[int, ...]]:
