@@ -35,6 +35,7 @@ from fjsp_sfr.baselines.rolling_ga import RollingGAConfig, run_rolling_ga, time_
 from fjsp_sfr.dispatch.rule_library import RuleLibrary
 from fjsp_sfr.experiments.formal_experiment import best_fixed_action, evaluate_episode, make_agent
 from fjsp_sfr.experiments.manifest import file_sha256, write_manifest
+from fjsp_sfr.experiments.paperA_contract import LEGACY
 from fjsp_sfr.generation.scenario_generator import make_scenario_instance, scenario_names, seed_values
 from fjsp_sfr.rl.ppo_trainer import PPOTrainer
 from fjsp_sfr.rl.ddqn_agent import DDQNTrainer, HGTDDQNAgent
@@ -117,7 +118,7 @@ def make_learning_agent(algo: str, action_size: int):
     if algo == "hgt_rainbow":
         from fjsp_sfr.rl.rainbow_agent import HGTRainbowAgent
         return HGTRainbowAgent(action_size=action_size, hidden_dim=64, num_layers=2, num_heads=4, job_input_dim=14)
-    return make_agent(algo, action_size)
+    return make_agent(algo, action_size, contract=LEGACY)
 
 
 def _rolling_task(payload):
@@ -213,6 +214,7 @@ def train_ppo(
                 evaluate_episode(
                     library, instance, selector=args.algo, agent=agent,
                     rng=random.Random(seed),
+                    contract=LEGACY,
                     mask_checkpoint=args.mask == "checkpoint",
                     mask_forecast=args.mask == "forecast",
                 )["F"]
@@ -258,6 +260,7 @@ def train_value_or_a2c(args, library, network_seed):
         evaluate_episode(
             library, factory(seed), selector=validation_selector, agent=agent,
             rng=random.Random(network_seed * 100000 + seed),
+            contract=LEGACY,
             mask_checkpoint=args.mask == "checkpoint",
             mask_forecast=args.mask == "forecast",
         )["F"]
@@ -304,7 +307,7 @@ def run_seed(args, network_seed: int) -> None:
     elif args.algo == "best_single":
         selection_seeds = seed_values("selection_center")[: max(2, args.n_instances)]
         selection = [make_scenario_instance("center", seed) for seed in selection_seeds]
-        fixed_action = best_fixed_action(library, selection)
+        fixed_action = best_fixed_action(library, selection, contract=LEGACY)
     elif args.algo == "random_select":
         selector = "random"
     else:
@@ -333,6 +336,7 @@ def run_seed(args, network_seed: int) -> None:
         result = evaluate_episode(
             library, instance, selector=selector, agent=agent,
             fixed_action=fixed_action, rng=random.Random(network_seed * 100000 + instance_seed),
+            contract=LEGACY,
             mask_checkpoint=args.mask == "checkpoint",
             mask_forecast=args.mask == "forecast",
         )

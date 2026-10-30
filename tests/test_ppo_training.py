@@ -188,7 +188,8 @@ class TestPPOTrainer:
         assert first_seeds == [1000, 1001, 1002]
         assert second_seeds == first_seeds
 
-    def test_instance_factory_f_ref_is_computed_from_all_rules(self, trainer):
+    def test_legacy_instance_factory_f_ref_is_computed_from_all_rules(self, trainer):
+        """Freeze the historical streaming protocol, not paper_20261030."""
         instance = make_test_instance()
         expected = []
         for rule_index, rule in enumerate(trainer.library.rules):

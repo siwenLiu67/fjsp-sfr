@@ -1,5 +1,11 @@
 # Paper A executable-contract ledger
 
+> Authority notice (2026-10-30): this file documents the earlier Sec.3--5
+> contract and remains as a historical test record. The current Paper A
+> contract is registered in `docs/paperA_20261030_contract/README.md`; conflicts
+> are tracked in `docs/paperA_20261030_contract_matrix.md`, and the newer source
+> takes precedence.
+
 This ledger is frozen against the following manuscript files. Historical paper
 copies are not admissible inputs to these tests.
 

@@ -128,6 +128,8 @@ def command_for(spec: RunSpec, output_root: Path, *, smoke: bool) -> list[str]:
     command = [
         sys.executable,
         "experiments/formal_experiment.py",
+        "--contract-config",
+        "legacy",
         "--library-id",
         spec.library_id,
         "--library-file",

@@ -28,6 +28,12 @@ from fjsp_sfr.dispatch.theory_features import build_extended_theory_features, fe
 from fjsp_sfr.env.ca_observation import resolve_observation_scales
 from fjsp_sfr.env.ca_rule_selection import CAPPORuleSelectionEnv
 from fjsp_sfr.experiments.manifest import file_sha256, write_manifest
+from fjsp_sfr.experiments.paperA_contract import (
+    FORMAL_EXPERIMENT_CONTRACTS,
+    FormalExperimentContract,
+    require_runtime_ready,
+    resolve_formal_contract,
+)
 from fjsp_sfr.experiments.train_streaming import linear_schedule
 from fjsp_sfr.experiments.validate_framework import build_rule_library
 from fjsp_sfr.generation.scale_config import make_scaled_instance
@@ -38,6 +44,8 @@ from fjsp_sfr.rl.ppo_agent import HGTPPOAgent
 from fjsp_sfr.rl.ppo_trainer import PPOTrainer
 
 
+# Historical compatibility constant.  New callers must select a named
+# contract with --contract-config; this alias must not choose the formal path.
 FEATURE_SET = "theory11_plus3"
 VALIDATION_SEEDS = tuple(range(100, 150))
 TRAIN_SEEDS = tuple(range(1000, 6000))
@@ -55,11 +63,21 @@ def load_library(path: str | None) -> RuleLibrary:
     return build_rule_library() if path == "handwritten6" else RuleLibrary.from_json(path)
 
 
-def graph_for(env, *, mask_checkpoint=False, mask_forecast=False):
+def graph_for(
+    env,
+    *,
+    contract: FormalExperimentContract,
+    mask_checkpoint=False,
+    mask_forecast=False,
+):
     problem, state, metrics = env._problem_view(), env._state, env.current_metrics
     time_scale, processing_scale = resolve_observation_scales(problem, state)
     rows = build_extended_theory_features(
-        problem, state, metrics, time_scale=time_scale, feature_set=FEATURE_SET
+        problem,
+        state,
+        metrics,
+        time_scale=time_scale,
+        feature_set=contract.feature_set,
     )
     graph = build_hetero_graph(
         problem,
@@ -68,27 +86,43 @@ def graph_for(env, *, mask_checkpoint=False, mask_forecast=False):
         rows,
         time_scale=time_scale,
         processing_scale=processing_scale,
-        feature_set=FEATURE_SET,
+        feature_set=contract.feature_set,
+        graph_config=contract.graph_config,
     )
     return apply_information_masks(
         graph,
-        feature_set=FEATURE_SET,
+        feature_set=contract.feature_set,
         mask_checkpoint=mask_checkpoint,
         mask_forecast=mask_forecast,
     )
 
 
-def make_agent(selector: str, action_size: int):
+def make_agent(
+    selector: str,
+    action_size: int,
+    *,
+    contract: FormalExperimentContract,
+):
     common = dict(action_size=action_size, hidden_dim=64)
     if selector == "hgt_ppo":
         return HGTPPOAgent(
-            **common, num_layers=2, num_heads=4, job_input_dim=14
+            **common,
+            num_layers=2,
+            num_heads=4,
+            job_input_dim=contract.node_dimensions[0],
+            machine_input_dim=contract.node_dimensions[1],
+            checkpoint_input_dim=contract.node_dimensions[2],
         )
     if selector == "mlp_ppo":
-        return MLPPPOAgent(**common, job_input_dim=14)
+        return MLPPPOAgent(**common, job_input_dim=contract.node_dimensions[0])
     if selector == "dqn":
         return HGTDQNAgent(
-            **common, num_layers=2, num_heads=4, job_input_dim=14
+            **common,
+            num_layers=2,
+            num_heads=4,
+            job_input_dim=contract.node_dimensions[0],
+            machine_input_dim=contract.node_dimensions[1],
+            checkpoint_input_dim=contract.node_dimensions[2],
         )
     raise ValueError(f"selector {selector} has no trainable agent")
 
@@ -101,6 +135,7 @@ def evaluate_episode(
     agent=None,
     fixed_action: int | None = None,
     rng: random.Random,
+    contract: FormalExperimentContract,
     mask_checkpoint=False,
     mask_forecast=False,
 ):
@@ -120,6 +155,7 @@ def evaluate_episode(
         else:
             graph = graph_for(
                 env,
+                contract=contract,
                 mask_checkpoint=mask_checkpoint,
                 mask_forecast=mask_forecast,
             )
@@ -156,7 +192,7 @@ def evaluate_episode(
     }
 
 
-def best_fixed_action(library, instances) -> int:
+def best_fixed_action(library, instances, *, contract: FormalExperimentContract) -> int:
     means = []
     for index in range(library.action_size()):
         values = [
@@ -166,6 +202,7 @@ def best_fixed_action(library, instances) -> int:
                 selector="fixed",
                 fixed_action=index,
                 rng=random.Random(0),
+                contract=contract,
             )["F"]
             for instance in instances
         ]
@@ -173,13 +210,17 @@ def best_fixed_action(library, instances) -> int:
     return min(range(len(means)), key=means.__getitem__)
 
 
-def evaluate_set(library, instances, seeds, **policy):
+def evaluate_set(library, instances, seeds, *, contract, **policy):
     rows, usage = [], Counter()
     all_probabilities, switch_count, decisions = [], 0, 0
     decision_seconds = 0.0
     for seed, instance in zip(seeds, instances, strict=True):
         result = evaluate_episode(
-            library, instance, rng=random.Random(seed + 91_000), **policy
+            library,
+            instance,
+            rng=random.Random(seed + 91_000),
+            contract=contract,
+            **policy,
         )
         rows.append({"seed": seed, "F": result["F"], "TT": result["TT"], "WSF": result["WSF"]})
         usage.update(result["usage"])
@@ -203,8 +244,8 @@ def evaluate_set(library, instances, seeds, **policy):
     }
 
 
-def train_ppo(args, library, instance_factory, validation_instances):
-    agent = make_agent(args.selector, library.action_size())
+def train_ppo(args, library, instance_factory, validation_instances, *, contract):
+    agent = make_agent(args.selector, library.action_size(), contract=contract)
     trainer = PPOTrainer(
         agent=agent,
         library=library,
@@ -212,12 +253,12 @@ def train_ppo(args, library, instance_factory, validation_instances):
         instance_factory=instance_factory,
         base_seed=1000,
         lr=3e-4,
-        gamma=0.99,
+        gamma=contract.gamma,
         gae_lambda=0.95,
         epochs_per_update=4,
         reward_scale=10.0,
         entropy_coef=0.02,
-        feature_set=FEATURE_SET,
+        feature_set=contract.feature_set,
         mask_checkpoint=args.mask_checkpoint,
         mask_forecast=args.mask_forecast,
     )
@@ -236,6 +277,7 @@ def train_ppo(args, library, instance_factory, validation_instances):
                 library,
                 validation_instances,
                 VALIDATION_SEEDS[: len(validation_instances)],
+                contract=contract,
                 selector=args.selector,
                 agent=agent,
                 mask_checkpoint=args.mask_checkpoint,
@@ -249,16 +291,16 @@ def train_ppo(args, library, instance_factory, validation_instances):
     return agent, time.perf_counter() - started
 
 
-def train_dqn(args, library, instance_factory):
-    agent = make_agent("dqn", library.action_size())
+def train_dqn(args, library, instance_factory, *, contract):
+    agent = make_agent("dqn", library.action_size(), contract=contract)
     trainer = DQNTrainer(
         agent,
         library,
         instance_factory,
         base_seed=1000,
-        feature_set=FEATURE_SET,
+        feature_set=contract.feature_set,
         lr=3e-4,
-        gamma=0.99,
+        gamma=contract.gamma,
         reward_scale=10.0,
         mask_checkpoint=args.mask_checkpoint,
         mask_forecast=args.mask_forecast,
@@ -269,6 +311,8 @@ def train_dqn(args, library, instance_factory):
 
 
 def run(args):
+    contract = resolve_formal_contract(args.contract_config)
+    require_runtime_ready(contract)
     output = Path(args.output_dir)
     output.mkdir(parents=True, exist_ok=True)
     summary_path = output / "summary.json"
@@ -289,7 +333,7 @@ def run(args):
     agent = None
     training_seconds = 0.0
     if args.checkpoint:
-        agent = make_agent(args.selector, library.action_size())
+        agent = make_agent(args.selector, library.action_size(), contract=contract)
         state = torch.load(args.checkpoint, map_location="cpu", weights_only=False)
         expected_hash = file_sha256(args.library_file)
         if state.get("selector") != args.selector:
@@ -298,11 +342,21 @@ def run(args):
             raise ValueError("checkpoint rule-library hash mismatch")
         agent.load_state_dict(state["agent_state_dict"])
     elif args.selector in {"hgt_ppo", "mlp_ppo"}:
-        agent, training_seconds = train_ppo(args, library, instance_factory, validation_instances)
+        agent, training_seconds = train_ppo(
+            args,
+            library,
+            instance_factory,
+            validation_instances,
+            contract=contract,
+        )
     elif args.selector == "dqn":
-        agent, training_seconds = train_dqn(args, library, instance_factory)
+        agent, training_seconds = train_dqn(
+            args, library, instance_factory, contract=contract
+        )
     elif args.selector == "fixed":
-        fixed_action = best_fixed_action(library, validation_instances)
+        fixed_action = best_fixed_action(
+            library, validation_instances, contract=contract
+        )
 
     if agent is not None and not args.checkpoint:
         torch.save(
@@ -328,6 +382,7 @@ def run(args):
         library,
         test_instances,
         test_seeds,
+        contract=contract,
         selector=args.selector,
         agent=agent,
         fixed_action=fixed_action,
@@ -341,6 +396,7 @@ def run(args):
         writer.writerows(rows)
     summary = {
         "library": args.library_id,
+        "contract_config": contract.name,
         "library_file": args.library_file,
         "scale": args.scale,
         "eval_scale": eval_scale,
@@ -368,6 +424,7 @@ def run(args):
         output / "manifest.json",
         {
             "kind": "formal_experiment",
+            "contract_config": contract.name,
             "library_sha256": file_sha256(args.library_file),
             "test_seeds": list(test_seeds),
             "config": {key: value for key, value in vars(args).items() if key != "force"},
@@ -378,6 +435,12 @@ def run(args):
 
 def parse_args(argv=None):
     parser = argparse.ArgumentParser()
+    parser.add_argument(
+        "--contract-config",
+        choices=tuple(FORMAL_EXPERIMENT_CONTRACTS),
+        required=True,
+        help="explicit implementation contract; no implicit legacy fallback",
+    )
     parser.add_argument("--library-id", required=True)
     parser.add_argument("--library-file", required=True)
     parser.add_argument("--scale", choices=tuple(TEST_SEEDS_BY_SCALE), required=True)
