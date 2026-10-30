@@ -5,6 +5,8 @@ import pytest
 from fjsp_sfr.generation.instance_generator import InstanceConfig, generate_instance
 from fjsp_sfr.generation.scenario_generator import (
     all_seed_partitions,
+    build_exogenous_service_entities,
+    load_scenario_config,
     make_scenario_instance,
     scenario_names,
     scenario_spec,
@@ -40,13 +42,41 @@ def test_due_date_uses_release_plus_ddt_times_route_mean():
         assert job.due_date == max(2, job.release_time + 1, round(job.release_time + ddt * mean_work))
 
 
-def test_each_entity_has_two_scaled_checkpoints_ending_at_final_due_date():
+def test_each_entity_commitment_uses_public_expectations_not_realized_jobs():
     instance = make_scenario_instance("center", 19)
+    config = load_scenario_config()
+    expected_q = sum(range(1, 6)) / 5
+    expected_final_quantity = (
+        instance.num_jobs / instance.num_entities
+        * expected_q
+        * config["checkpoint"]["commitment_ratio"]
+    )
+    expected_checkpoints = instance.entities[0].checkpoints
     for entity in instance.entities:
         assert len(entity.checkpoints) == 2
-        assert entity.checkpoints[-1].time == max(
-            job.due_date for job in instance.jobs if job.entity_id == entity.entity_id
+        assert entity.checkpoints == expected_checkpoints
+        assert entity.checkpoints[-1].required_quantity == pytest.approx(
+            expected_final_quantity
         )
+    assert instance.metadata["realization_used_to_build_commitment"] is False
+
+
+def test_parameterized_exogenous_commitment_builder_has_exact_contract():
+    entities = build_exogenous_service_entities(
+        entity_count=2,
+        expected_total_quantity_per_entity=40.0,
+        final_checkpoint_time=100,
+        first_time_ratio=0.6,
+        first_demand_ratio=0.5,
+        commitment_ratio=0.8,
+        weights=(2.0, 5.0),
+    )
+    for entity in entities:
+        assert tuple(checkpoint.time for checkpoint in entity.checkpoints) == (60, 100)
+        assert tuple(
+            checkpoint.required_quantity for checkpoint in entity.checkpoints
+        ) == pytest.approx((16.0, 32.0))
+        assert tuple(checkpoint.weight for checkpoint in entity.checkpoints) == (2.0, 5.0)
 
 
 def test_scenario_seed_partitions_are_pairwise_disjoint():

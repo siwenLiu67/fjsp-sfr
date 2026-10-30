@@ -119,6 +119,66 @@ def empty_forecast_snapshot(
     )
 
 
+def build_compound_poisson_forecast_provider(
+    *,
+    entity_ids: Iterable[int],
+    total_arrival_rate: float,
+    quantity_mean: float,
+    quantity_second_moment: float,
+    max_time: int,
+) -> FixedForecastProvider:
+    """Build the paper's leakage-safe homogeneous compound-Poisson forecast.
+
+    Arrivals are split uniformly across the supplied service entities, so the
+    rate for each entity is ``total_arrival_rate / len(entity_ids)``.  Over a
+    horizon of length ``s`` the quantity mean and variance are respectively
+
+    ``lambda_r * s * E[q]`` and ``lambda_r * s * E[q**2]``.
+
+    A single calendar bucket covers the published checkpoint horizon.  This is
+    an exact representation of the homogeneous process for the consumers in
+    :mod:`dispatch.ca_metrics`; it deliberately avoids choosing the manuscript's
+    still-undetermined display bucket length ``Delta_b``.  No realized job or
+    unreleased-job attribute is accepted by this interface.
+    """
+
+    ids = tuple(sorted(set(int(entity_id) for entity_id in entity_ids)))
+    if not ids:
+        raise ValueError("compound-Poisson forecast requires at least one entity")
+    if any(entity_id < 0 for entity_id in ids):
+        raise ValueError("forecast entity ids must be non-negative")
+    if total_arrival_rate < 0.0:
+        raise ValueError("total arrival rate must be non-negative")
+    if quantity_mean < 0.0 or quantity_second_moment < 0.0:
+        raise ValueError("quantity moments must be non-negative")
+    if quantity_second_moment + 1e-12 < quantity_mean * quantity_mean:
+        raise ValueError("E[q**2] cannot be smaller than E[q]**2")
+    if max_time <= 0:
+        raise ValueError("forecast horizon must be positive")
+
+    entity_rate = float(total_arrival_rate) / len(ids)
+    horizon_mean = entity_rate * max_time * float(quantity_mean)
+    horizon_variance = entity_rate * max_time * float(quantity_second_moment)
+    buckets = {
+        entity_id: (
+            ForecastBucket(
+                0,
+                int(max_time),
+                horizon_mean,
+                math.sqrt(horizon_variance),
+            ),
+        )
+        for entity_id in ids
+    }
+    # There is no stochastic forecast update in the homogeneous model.  The
+    # online consumer recomputes the remaining interval from its current time.
+    # ``max_time + 1`` is therefore only an interface cadence, not Delta_b.
+    return FixedForecastProvider(
+        (ForecastSnapshot(update_epoch=0, buckets_by_entity=buckets),),
+        update_interval=int(max_time) + 1,
+    )
+
+
 def build_forecast_provider_from_latent_demand(
     latent_bucket_means: Iterable[tuple[int, int, float]],
     *,

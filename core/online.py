@@ -47,6 +47,16 @@ class OnlineProblemView:
             if job.job_id in visible_job_ids and job.release_time <= current_time
         )
         safe_ids = tuple(sorted(job.job_id for job in visible))
+        metadata = {
+            "visible_job_ids": safe_ids,
+            "forecast_update_epoch": forecast_snapshot.update_epoch,
+        }
+        # Public generator/scaling metadata is legal online information.  It
+        # lets Table 5-2 use fixed distribution scales without consulting the
+        # realized (possibly unreleased) job sample.
+        for key in ("generator", "feature_normalization_scales"):
+            if key in instance.metadata:
+                metadata[key] = instance.metadata[key]
         return cls(
             jobs=visible,
             entities=instance.entities,
@@ -57,10 +67,7 @@ class OnlineProblemView:
             forecast_risk_kappa=instance.forecast_risk_kappa,
             r5_epsilon=instance.r5_epsilon,
             current_time=current_time,
-            metadata={
-                "visible_job_ids": safe_ids,
-                "forecast_update_epoch": forecast_snapshot.update_epoch,
-            },
+            metadata=metadata,
         )
 
     @property

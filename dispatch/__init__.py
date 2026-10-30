@@ -3,7 +3,9 @@
 from .ca_metrics import (
     CADecisionMetrics,
     CandidateMetrics,
+    CheckpointCapacityAnalysis,
     CheckpointMetrics,
+    analyze_checkpoint_capacity,
     build_ca_decision_metrics,
     candidate_jobs,
     compute_arrival_insufficiency,
@@ -16,7 +18,10 @@ from .ca_metrics import (
     multi_checkpoint_service_value,
     next_trigger_machine,
     optimistic_candidate_completion,
+    optimistic_job_completion_lower_bound,
     residual_checkpoint_gap,
+    select_target_checkpoint,
+    timely_visible_jobs,
 )
 from .ca_rules import rule_applicability_mask, select_job
 from .types import DirectCandidateDecision, RuleAction, RuleDecision
@@ -24,11 +29,13 @@ from .types import DirectCandidateDecision, RuleAction, RuleDecision
 __all__ = [
     "CADecisionMetrics",
     "CandidateMetrics",
+    "CheckpointCapacityAnalysis",
     "CheckpointMetrics",
     "DirectCandidateDecision",
     "RuleAction",
     "RuleDecision",
     "build_ca_decision_metrics",
+    "analyze_checkpoint_capacity",
     "candidate_jobs",
     "compute_arrival_insufficiency",
     "compute_conservative_arrival_forecast",
@@ -40,7 +47,10 @@ __all__ = [
     "multi_checkpoint_service_value",
     "next_trigger_machine",
     "optimistic_candidate_completion",
+    "optimistic_job_completion_lower_bound",
     "residual_checkpoint_gap",
+    "select_target_checkpoint",
+    "timely_visible_jobs",
     "rule_applicability_mask",
     "select_job",
 ]

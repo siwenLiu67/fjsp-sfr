@@ -280,8 +280,8 @@ class CAPPORuleSelectionEnv:
             )
         elif hasattr(principle, "rule_type"):
             from fjsp_sfr.dispatch.theory_features import (
-                THEORY_FEATURE_NAMES,
                 build_extended_theory_features,
+                feature_names_for,
             )
 
             factor_rows = build_extended_theory_features(
@@ -304,7 +304,9 @@ class CAPPORuleSelectionEnv:
             if hasattr(principle, "is_applicable") and not principle.is_applicable(
                 tuple(max(column) for column in zip(*factor_rows, strict=True))
             ):
-                slack_index = THEORY_FEATURE_NAMES.index("due_date_slack")
+                slack_index = feature_names_for(
+                    getattr(principle, "feature_set", "theory11")
+                ).index("due_date_slack")
                 scores = [-row[slack_index] for row in factor_rows]
             else:
                 scores = principle.evaluate_batch(factor_rows)

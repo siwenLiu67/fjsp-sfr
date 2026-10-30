@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import math
 from dataclasses import dataclass
 
 from fjsp_sfr.core.forecast import ForecastSnapshot, empty_forecast_snapshot
@@ -41,6 +42,39 @@ class CheckpointMetrics:
     arrival_insufficiency: float
     release_threshold_time: float | None
     release_slack: float | None
+    confirmed_supply: float = 0.0
+    additional_gap: float = 0.0
+    timely_visible_quantity: float = 0.0
+    additional_candidate_quantity: float = 0.0
+    minimum_work_per_quantity: float | None = None
+    capacity_applicable: bool = False
+    capacity_shortfall: float = 0.0
+    timely_job_ids: tuple[int, ...] = ()
+    additional_job_ids: tuple[int, ...] = ()
+    eligible_machine_ids: tuple[int, ...] = ()
+
+
+@dataclass(frozen=True)
+class CheckpointCapacityAnalysis:
+    """Exact Sec. 4.3 quantities for one visible checkpoint state."""
+
+    entity_id: int
+    checkpoint_index: int
+    residual_gap: float
+    timely_jobs: tuple[Job, ...]
+    confirmed_jobs: tuple[Job, ...]
+    additional_jobs: tuple[Job, ...]
+    confirmed_supply: float
+    additional_gap: float
+    timely_quantity: float
+    additional_quantity: float
+    minimum_work_per_quantity: float | None
+    eligible_machine_ids: tuple[int, ...]
+    available_capacity: float
+    required_workload: float
+    applicable: bool
+    capacity_shortfall: float
+
 
 @dataclass(frozen=True)
 class CADecisionMetrics:
@@ -65,6 +99,43 @@ class CADecisionMetrics:
 
     def remaining_time(self, candidate: CandidateMetrics) -> int:
         return candidate.optimistic_completion - self.decision_time
+
+
+def select_target_checkpoint(
+    metrics: CADecisionMetrics,
+    candidate: CandidateMetrics,
+) -> CheckpointMetrics | None:
+    """Select the single target checkpoint defined in Sec. 4.5.
+
+    The earliest positive-gap unsettled checkpoint reachable by the job is
+    preferred.  If none is reachable, the earliest positive-gap unsettled
+    checkpoint of the same entity is returned.  ``None`` denotes no target.
+    """
+
+    eligible = tuple(
+        checkpoint
+        for (_key, checkpoint) in sorted(
+            metrics.checkpoints.items(),
+            key=lambda item: (
+                item[1].checkpoint_time,
+                item[1].checkpoint_index,
+            ),
+        )
+        if checkpoint.entity_id == candidate.entity_id
+        and checkpoint.checkpoint_time > metrics.decision_time
+        and checkpoint.residual_gap > 0.0
+    )
+    if not eligible:
+        return None
+    reachable = set(candidate.reachable_unmet_checkpoints)
+    return next(
+        (
+            checkpoint
+            for checkpoint in eligible
+            if checkpoint.checkpoint_index in reachable
+        ),
+        eligible[0],
+    )
 
 
 def residual_checkpoint_gap(
@@ -119,26 +190,187 @@ def next_trigger_machine(
     return None
 
 
-def optimistic_candidate_completion(job: Job, state: ScheduleState, machine_id: int) -> int:
-    """C_lower_ju(tau), fixing the next operation on the trigger machine."""
+def _ongoing_operation(state: ScheduleState, job: Job):
+    matches = tuple(
+        scheduled
+        for (job_id, _operation_id), scheduled in state.ongoing_operations.items()
+        if job_id == job.job_id
+    )
+    if len(matches) > 1:
+        raise RuntimeError(f"job {job.job_id} has multiple ongoing operations")
+    if not matches:
+        return None
+    scheduled = matches[0]
+    operation = next(
+        item for item in job.operations if item.op_id == scheduled.op_id
+    )
+    return scheduled, operation
 
-    next_index = state.next_op_index_for_job(job.job_id)
-    operation = job.operation_at(next_index)
-    return (
+
+def optimistic_job_completion_lower_bound(job: Job, state: ScheduleState) -> int:
+    """Return Eq. (4.2) using only the legal visible state.
+
+    ``C_LB = t + p_run + sum(p_min for every unstarted operation)``.
+    Machine queues and a hypothetical trigger-machine assignment never enter
+    this value.
+    """
+
+    if job.release_time > state.current_time:
+        raise ValueError("completion lower bound requires a released job")
+    if state.is_job_completed(job.job_id):
+        return int(state.completed_jobs[job.job_id])
+    ongoing = _ongoing_operation(state, job)
+    if ongoing is None:
+        first_unstarted = state.next_op_index_for_job(job.job_id)
+        running_remaining = 0
+    else:
+        scheduled, operation = ongoing
+        first_unstarted = operation.sequence_index + 1
+        running_remaining = max(0, scheduled.end_time - state.current_time)
+    return int(
         state.current_time
-        + operation.processing_time_on(machine_id)
-        + sum(item.min_processing_time for item in job.operations[next_index + 1 :])
+        + running_remaining
+        + sum(
+            operation.min_processing_time
+            for operation in job.operations[first_unstarted:]
+        )
     )
 
 
-def _ongoing_end(state: ScheduleState, job: Job) -> tuple[int, int] | None:
-    for (job_id, _operation_id), scheduled in state.ongoing_operations.items():
-        if job_id == job.job_id:
-            operation = next(
-                item for item in job.operations if item.op_id == scheduled.op_id
+def optimistic_candidate_completion(
+    job: Job, state: ScheduleState, machine_id: int | None = None
+) -> int:
+    """Compatibility alias for the trigger-machine-invariant Eq. (4.2)."""
+
+    del machine_id
+    return optimistic_job_completion_lower_bound(job, state)
+
+
+def timely_visible_jobs(
+    problem: SchedulingProblem,
+    state: ScheduleState,
+    entity_id: int,
+    checkpoint_index: int,
+) -> tuple[Job, ...]:
+    """Return Omega_rkt from released, unfinished jobs only."""
+
+    checkpoint = problem.get_entity(entity_id).checkpoints[checkpoint_index]
+    if state.current_time >= checkpoint.time:
+        return ()
+    return tuple(
+        job
+        for job in sorted(problem.jobs_of_entity(entity_id), key=lambda item: item.job_id)
+        if job.release_time <= state.current_time
+        and not state.is_job_completed(job.job_id)
+        and optimistic_job_completion_lower_bound(job, state) <= checkpoint.time
+    )
+
+
+def _unstarted_operations(job: Job, state: ScheduleState):
+    ongoing = _ongoing_operation(state, job)
+    first_unstarted = (
+        state.next_op_index_for_job(job.job_id)
+        if ongoing is None
+        else ongoing[1].sequence_index + 1
+    )
+    return job.operations[first_unstarted:]
+
+
+def analyze_checkpoint_capacity(
+    problem: SchedulingProblem,
+    state: ScheduleState,
+    entity_id: int,
+    checkpoint_index: int,
+    *,
+    residual_gap: float | None = None,
+) -> CheckpointCapacityAnalysis:
+    """Compute A, G+, Omega+, nu, Cap and Delta_cap from Sec. 4.3."""
+
+    checkpoint = problem.get_entity(entity_id).checkpoints[checkpoint_index]
+    gap = (
+        residual_checkpoint_gap(problem, state, entity_id, checkpoint_index)
+        if residual_gap is None
+        else max(0.0, float(residual_gap))
+    )
+    omega = timely_visible_jobs(
+        problem, state, entity_id, checkpoint_index
+    ) if gap > 0.0 else ()
+    confirmed: list[Job] = []
+    for job in omega:
+        ongoing = _ongoing_operation(state, job)
+        if ongoing is None:
+            continue
+        scheduled, operation = ongoing
+        if (
+            operation.sequence_index == job.num_operations - 1
+            and scheduled.end_time <= checkpoint.time
+        ):
+            confirmed.append(job)
+    confirmed_ids = {job.job_id for job in confirmed}
+    additional = tuple(job for job in omega if job.job_id not in confirmed_ids)
+    confirmed_supply = float(sum(job.quantity for job in confirmed))
+    additional_gap = max(0.0, gap - confirmed_supply)
+    timely_quantity = float(sum(job.quantity for job in omega))
+    additional_quantity = float(sum(job.quantity for job in additional))
+
+    work_ratios: list[float] = []
+    relevant_machines: set[int] = set()
+    for job in additional:
+        unstarted = _unstarted_operations(job, state)
+        workload = float(sum(op.min_processing_time for op in unstarted))
+        if workload > 0.0:
+            work_ratios.append(workload / float(job.quantity))
+        relevant_machines.update(
+            machine_id
+            for operation in unstarted
+            for machine_id in operation.eligible_machines
+        )
+
+    applicable = additional_gap > 0.0 and additional_quantity >= additional_gap
+    if applicable and not work_ratios:
+        raise RuntimeError("applicable capacity analysis requires positive additional work")
+    nu = min(work_ratios) if work_ratios else None
+    available_capacity = float(
+        sum(
+            max(
+                0,
+                checkpoint.time
+                - state.current_time
+                - max(
+                    0,
+                    state.machine_available_times.get(machine_id, state.current_time)
+                    - state.current_time,
+                ),
             )
-            return scheduled.end_time, operation.sequence_index + 1
-    return None
+            for machine_id in relevant_machines
+        )
+    )
+    required_workload = (
+        additional_gap * float(nu) if applicable and nu is not None else 0.0
+    )
+    capacity_shortfall = (
+        max(0.0, additional_gap - available_capacity / float(nu))
+        if applicable and nu is not None
+        else 0.0
+    )
+    return CheckpointCapacityAnalysis(
+        entity_id=entity_id,
+        checkpoint_index=checkpoint_index,
+        residual_gap=gap,
+        timely_jobs=omega,
+        confirmed_jobs=tuple(confirmed),
+        additional_jobs=additional,
+        confirmed_supply=confirmed_supply,
+        additional_gap=additional_gap,
+        timely_quantity=timely_quantity,
+        additional_quantity=additional_quantity,
+        minimum_work_per_quantity=nu,
+        eligible_machine_ids=tuple(sorted(relevant_machines)),
+        available_capacity=available_capacity,
+        required_workload=required_workload,
+        applicable=applicable,
+        capacity_shortfall=capacity_shortfall,
+    )
 
 
 def compute_optimistic_checkpoint_workload_capacity(
@@ -149,68 +381,16 @@ def compute_optimistic_checkpoint_workload_capacity(
     *,
     residual_gap: float | None = None,
 ) -> tuple[float, float]:
-    """Return optimistic required workload and available related-machine time.
+    """Compatibility tuple ``(G_plus * nu, CapR)`` from Sec. 4.3."""
 
-    The quantity gap is converted with the smallest visible unfinished
-    workload-per-quantity ratio for the entity.  This is an optimistic lower
-    bound on required processing.  Capacity is the sum of free machine-time
-    remaining before the checkpoint over machines eligible for those jobs'
-    unscheduled remaining operations; it is an optimistic upper bound because
-    it ignores contention with other entities and precedence interactions.
-    """
-
-    checkpoint = problem.get_entity(entity_id).checkpoints[checkpoint_index]
-    visible_jobs = tuple(
-        job
-        for job in problem.jobs_of_entity(entity_id)
-        if job.release_time <= state.current_time
-        and not state.is_job_completed(job.job_id)
+    analysis = analyze_checkpoint_capacity(
+        problem,
+        state,
+        entity_id,
+        checkpoint_index,
+        residual_gap=residual_gap,
     )
-    workload_ratios: list[float] = []
-    relevant_machines: set[int] = set()
-    for job in visible_jobs:
-        ongoing = _ongoing_end(state, job)
-        start_index = (
-            ongoing[1]
-            if ongoing is not None
-            else state.next_op_index_for_job(job.job_id)
-        )
-        remaining_operations = job.operations[start_index:]
-        workload = sum(
-            operation.min_processing_time for operation in remaining_operations
-        )
-        if workload > 0:
-            workload_ratios.append(float(workload) / float(job.quantity))
-        relevant_machines.update(
-            machine_id
-            for operation in remaining_operations
-            for machine_id in operation.eligible_machines
-        )
-
-    gap = (
-        residual_checkpoint_gap(
-            problem, state, entity_id, checkpoint_index
-        )
-        if residual_gap is None
-        else max(0.0, float(residual_gap))
-    )
-    required_workload = (
-        gap * min(workload_ratios) if workload_ratios else 0.0
-    )
-    available_capacity = float(
-        sum(
-            max(
-                0,
-                checkpoint.time
-                - max(
-                    state.current_time,
-                    state.machine_available_times.get(machine_id, 0),
-                ),
-            )
-            for machine_id in relevant_machines
-        )
-    )
-    return required_workload, available_capacity
+    return analysis.required_workload, analysis.available_capacity
 
 
 def visible_optimistic_completion(job: Job, state: ScheduleState) -> int:
@@ -224,19 +404,7 @@ def visible_optimistic_completion(job: Job, state: ScheduleState) -> int:
     if job.release_time > state.current_time:
         raise ValueError("visible optimistic completion requires a released job")
 
-    ongoing = _ongoing_end(state, job)
-    if ongoing is None:
-        ready = max(state.current_time, job.release_time)
-        start_index = state.next_op_index_for_job(job.job_id)
-    else:
-        ready, start_index = ongoing
-    for operation in job.operations[start_index:]:
-        ready = min(
-            max(ready, state.machine_available_times.get(alt.machine_id, 0))
-            + alt.processing_time
-            for alt in operation.alternatives
-        )
-    return ready
+    return optimistic_job_completion_lower_bound(job, state)
 
 
 def multi_checkpoint_service_value(
@@ -257,7 +425,7 @@ def multi_checkpoint_service_value(
     reachable: list[int] = []
     for index, checkpoint in enumerate(entity.checkpoints):
         gap = gap_lookup[(entity.entity_id, index)]
-        if checkpoint.time < state.current_time or gap <= 0.0:
+        if checkpoint.time <= state.current_time or gap <= 0.0:
             continue
         if optimistic_completion <= checkpoint.time:
             reachable.append(index)
@@ -271,14 +439,12 @@ def compute_optimistic_visible_coverage(
     entity_id: int,
     checkpoint_index: int,
 ) -> float:
-    checkpoint = problem.get_entity(entity_id).checkpoints[checkpoint_index]
     return float(
         sum(
             job.quantity
-            for job in problem.jobs_of_entity(entity_id)
-            if job.release_time <= state.current_time
-            and not state.is_job_completed(job.job_id)
-            and visible_optimistic_completion(job, state) <= checkpoint.time
+            for job in timely_visible_jobs(
+                problem, state, entity_id, checkpoint_index
+            )
         )
     )
 
@@ -324,27 +490,34 @@ def compute_arrival_forecast_summary(
     tau: int,
     kappa: float,
 ) -> tuple[float, float, float]:
-    """Return forecast mean, uncertainty, and conservative demand before a checkpoint.
+    """Return cumulative mean, standard deviation and conservative quantity.
 
-    Mean and uncertainty use the same partial-bucket interpolation as the
-    existing conservative forecast.  The uncertainty is the sum of the
-    overlap-weighted bucket sigmas, retaining the physical quantity unit used
-    by checkpoint demand and residual gaps.
+    Bucket variances are accumulated over ``(tau, checkpoint_time]`` before a
+    *single* uncertainty correction is applied.  The conservative result is
+    the non-negative prefix maximum required by Eq. (4-*) of the manuscript,
+    not a sum of separately truncated bucket forecasts.  For a partial bucket,
+    homogeneous-within-bucket interpolation scales mean and variance linearly
+    with elapsed time.
     """
 
     if kappa < 0.0:
         raise ValueError("forecast risk parameter kappa must be non-negative")
     demand = 0.0
-    uncertainty = 0.0
+    variance = 0.0
     conservative = 0.0
     for bucket in snapshot.for_entity(entity_id):
         fraction = _overlap_fraction(
             bucket.start, bucket.end, tau, checkpoint_time
         )
+        if fraction <= 0.0:
+            continue
         demand += fraction * bucket.d_hat
-        uncertainty += fraction * bucket.sigma
-        conservative += fraction * bucket.conservative_quantity(kappa)
-    return demand, uncertainty, conservative
+        variance += fraction * bucket.sigma * bucket.sigma
+        conservative = max(
+            conservative,
+            demand - kappa * math.sqrt(max(0.0, variance)),
+        )
+    return demand, math.sqrt(max(0.0, variance)), max(0.0, conservative)
 
 
 def compute_arrival_insufficiency(
@@ -364,14 +537,46 @@ def compute_release_threshold_time(
 ) -> float | None:
     if future_required <= 0.0:
         return None
-    cumulative = 0.0
+    cumulative_mean = 0.0
+    cumulative_variance = 0.0
+    prefix_conservative = 0.0
     for bucket in snapshot.for_entity(entity_id):
+        segment_start = max(bucket.start, tau)
+        segment_end = min(bucket.end, checkpoint_time)
         fraction = _overlap_fraction(bucket.start, bucket.end, tau, checkpoint_time)
         if fraction <= 0.0:
             continue
-        cumulative += fraction * bucket.conservative_quantity(kappa)
-        if cumulative + 1e-12 >= future_required:
-            return float(min(bucket.end, checkpoint_time))
+        segment_mean = fraction * bucket.d_hat
+        segment_variance = fraction * bucket.sigma * bucket.sigma
+        end_mean = cumulative_mean + segment_mean
+        end_variance = cumulative_variance + segment_variance
+        end_value = max(
+            prefix_conservative,
+            end_mean - kappa * math.sqrt(max(0.0, end_variance)),
+        )
+        if end_value + 1e-12 >= future_required:
+            duration = float(segment_end - segment_start)
+
+            def conservative_at(elapsed: float) -> float:
+                share = 0.0 if duration <= 0.0 else elapsed / duration
+                mean = cumulative_mean + share * segment_mean
+                variance = cumulative_variance + share * segment_variance
+                return max(
+                    prefix_conservative,
+                    mean - kappa * math.sqrt(max(0.0, variance)),
+                )
+
+            lower, upper = 0.0, duration
+            for _ in range(64):
+                middle = (lower + upper) / 2.0
+                if conservative_at(middle) + 1e-12 >= future_required:
+                    upper = middle
+                else:
+                    lower = middle
+            return float(segment_start) + upper
+        cumulative_mean = end_mean
+        cumulative_variance = end_variance
+        prefix_conservative = end_value
     return None
 
 
@@ -417,18 +622,16 @@ def build_ca_decision_metrics(
     for entity in problem.entities:
         for index, checkpoint in enumerate(entity.checkpoints):
             gap = gaps[(entity.entity_id, index)]
-            required_workload, machine_capacity = (
-                compute_optimistic_checkpoint_workload_capacity(
-                    problem,
-                    state,
-                    entity.entity_id,
-                    index,
-                    residual_gap=gap,
-                )
+            capacity = analyze_checkpoint_capacity(
+                problem,
+                state,
+                entity.entity_id,
+                index,
+                residual_gap=gap,
             )
-            visible = compute_optimistic_visible_coverage(
-                problem, state, entity.entity_id, index
-            )
+            required_workload = capacity.required_workload
+            machine_capacity = capacity.available_capacity
+            visible = capacity.timely_quantity
             future_required = compute_future_required_quantity(gap, visible)
             forecast_demand, forecast_uncertainty, forecast = (
                 compute_arrival_forecast_summary(
@@ -465,6 +668,18 @@ def build_ca_decision_metrics(
                 arrival_insufficiency=insufficiency,
                 release_threshold_time=theta,
                 release_slack=compute_release_slack(checkpoint.time, theta),
+                confirmed_supply=capacity.confirmed_supply,
+                additional_gap=capacity.additional_gap,
+                timely_visible_quantity=capacity.timely_quantity,
+                additional_candidate_quantity=capacity.additional_quantity,
+                minimum_work_per_quantity=capacity.minimum_work_per_quantity,
+                capacity_applicable=capacity.applicable,
+                capacity_shortfall=capacity.capacity_shortfall,
+                timely_job_ids=tuple(job.job_id for job in capacity.timely_jobs),
+                additional_job_ids=tuple(
+                    job.job_id for job in capacity.additional_jobs
+                ),
+                eligible_machine_ids=capacity.eligible_machine_ids,
             )
 
     metrics: list[CandidateMetrics] = []
