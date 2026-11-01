@@ -7,6 +7,7 @@ from dataclasses import dataclass, field
 import torch
 
 from fjsp_sfr.rl.graph import HeteroGraphData
+from fjsp_sfr.rl.action_groups import ActionGroups, ConcreteDispatch
 
 
 @dataclass
@@ -20,6 +21,9 @@ class RolloutStep:
     reward: float
     done: bool
     action_mask: torch.Tensor
+    action_groups: ActionGroups = ()
+    action_group_index: int | None = None
+    concrete_dispatch: ConcreteDispatch | None = None
 
 
 @dataclass

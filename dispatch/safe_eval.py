@@ -144,7 +144,11 @@ class CompiledExpression:
                 "__builtins__": {},
             }
         )
-        return float(eval(self._code, namespace))
+        try:
+            value = float(eval(self._code, namespace))
+        except (ArithmeticError, ValueError):
+            return 0.0
+        return value if math.isfinite(value) else 0.0
 
     def evaluate_batch(
         self,

@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import math
 import random
 from collections.abc import Callable, Mapping, Sequence
 from copy import deepcopy
@@ -16,21 +17,25 @@ from fjsp_sfr.core.objective import compute_objective
 from fjsp_sfr.dispatch.classic_rules import ClassicRule
 from fjsp_sfr.dispatch.rule_library import RuleLibrary
 from fjsp_sfr.dispatch.symbolic_rule import SymbolicRule
-from fjsp_sfr.dispatch.theory_features import (
-    THEORY_FEATURE_NAMES,
-    build_extended_theory_features,
-    feature_names_for,
-)
+from fjsp_sfr.dispatch.theory_features import build_extended_theory_features, feature_names_for
 from fjsp_sfr.env.ca_observation import resolve_observation_scales
 from fjsp_sfr.env.ca_rule_selection import CAPPORuleSelectionEnv
 from fjsp_sfr.rl.graph import (
     GRAPH_CONFIGS,
     LEGACY_GRAPH,
+    PAPER_GRAPH,
     HeteroGraphData,
     apply_information_masks,
     build_hetero_graph,
 )
 from fjsp_sfr.rl.ppo_agent import HGTPPOAgent
+from fjsp_sfr.rl.action_groups import (
+    ActionGroups,
+    ConcreteDispatch,
+    aggregate_rule_log_probs,
+    build_action_groups,
+    validate_action_groups,
+)
 from fjsp_sfr.rl.rollout_buffer import RolloutBuffer, RolloutStep
 
 
@@ -145,8 +150,28 @@ def _rule_candidate_index(
     elif rule.is_applicable(_summary_row(factor_rows)):
         scores = rule.evaluate_batch(factor_rows)
     else:
-        slack_index = THEORY_FEATURE_NAMES.index("due_date_slack")
-        scores = [-row[slack_index] for row in factor_rows]
+        candidates = tuple(
+            sorted(metrics.candidates, key=lambda candidate: candidate.job_id)
+        )
+        scores = [
+            -(
+                float(problem.get_job(candidate.job_id).due_date)
+                - float(candidate.optimistic_completion)
+            )
+            for candidate in candidates
+        ]
+
+    if scores and not any(math.isfinite(float(score)) for score in scores):
+        candidates = tuple(
+            sorted(metrics.candidates, key=lambda candidate: candidate.job_id)
+        )
+        scores = [
+            -(
+                float(problem.get_job(candidate.job_id).due_date)
+                - float(candidate.optimistic_completion)
+            )
+            for candidate in candidates
+        ]
 
     best_index = 0
     best_score = float("-inf")
@@ -155,6 +180,60 @@ def _rule_candidate_index(
             best_score = score
             best_index = index
     return best_index
+
+
+def concrete_rule_action_groups(
+    env: CAPPORuleSelectionEnv,
+    library: RuleLibrary,
+    factor_rows: tuple[tuple[float, ...], ...],
+    action_mask: torch.Tensor,
+    *,
+    merge_equivalent: bool,
+) -> tuple[ActionGroups, tuple[int, ...], tuple[ConcreteDispatch, ...]]:
+    """Evaluate deterministic rules once and group their concrete dispatches."""
+
+    candidates = tuple(
+        sorted(env.current_metrics.candidates, key=lambda candidate: candidate.job_id)
+    )
+    candidate_indices: list[int] = []
+    dispatches: list[ConcreteDispatch] = []
+    per_job_dispatch: dict[int, ConcreteDispatch] = {}
+    for rule_index, rule in enumerate(library.rules):
+        if not bool(action_mask[rule_index]):
+            candidate_indices.append(-1)
+            dispatches.append((-1, -1, -1))
+            continue
+        candidate_index = _rule_candidate_index(
+            rule,
+            factor_rows,
+            problem=env._problem_view(),
+            state=env._state,
+            metrics=env.current_metrics,
+        )
+        candidate = candidates[candidate_index]
+        dispatch = (
+            int(candidate.job_id),
+            int(candidate.operation_id),
+            int(candidate.machine_id),
+        )
+        previous = per_job_dispatch.setdefault(candidate.job_id, dispatch)
+        if previous != dispatch:
+            raise RuntimeError(
+                "the same job mapped to different concrete operations or machines"
+            )
+        candidate_indices.append(candidate_index)
+        dispatches.append(dispatch)
+    groups = build_action_groups(
+        dispatches,
+        action_mask,
+        merge_equivalent=merge_equivalent,
+    )
+    validate_action_groups(groups, action_mask)
+    for group in groups:
+        keys = {dispatches[index] for index in group}
+        if len(keys) != 1:
+            raise RuntimeError("an action group contains different concrete dispatches")
+    return groups, tuple(candidate_indices), tuple(dispatches)
 
 
 class PPOTrainer:
@@ -183,6 +262,7 @@ class PPOTrainer:
         mask_checkpoint: bool = False,
         mask_forecast: bool = False,
         reward_reference_mode: str = "legacy_per_instance",
+        action_equivalence_merge: bool = False,
     ) -> None:
         feature_names_for(feature_set)
         if graph_config not in GRAPH_CONFIGS:
@@ -218,6 +298,17 @@ class PPOTrainer:
                 raise ValueError(
                     "global calibrated f_ref must be finite and at least one"
                 )
+        if graph_config == PAPER_GRAPH:
+            if feature_set != "paper14":
+                raise ValueError("paper_graph PPO requires feature_set='paper14'")
+            if getattr(agent, "encoder_type", None) != "crg_gatv2":
+                raise ValueError("paper_graph PPO requires the CRG actor encoder")
+            if gamma != 1.0 or gae_lambda != 0.95:
+                raise ValueError("formal scalar PPO requires gamma=1 and GAE lambda=0.95")
+            if reward_reference_mode != "global_calibration":
+                raise ValueError("formal scalar PPO requires one global calibrated F_ref")
+            if reward_scale != 10.0:
+                raise ValueError("formal scalar PPO requires reward_scale=10")
 
         self.agent = agent
         self.library = library
@@ -254,6 +345,7 @@ class PPOTrainer:
         self.graph_config = graph_config
         self.mask_checkpoint = bool(mask_checkpoint)
         self.mask_forecast = bool(mask_forecast)
+        self.action_equivalence_merge = bool(action_equivalence_merge)
         self.optimizer = torch.optim.Adam(agent.parameters(), lr=lr)
 
     @property
@@ -375,16 +467,53 @@ class PPOTrainer:
             while True:
                 graph, features = self._build_graph_for_env(env)
                 mask = self._get_action_mask(env)
-                action, log_prob, value = self.agent.select_action(graph, mask)
-                rule = self.library.get_rule(action)
-                candidate_index = _rule_candidate_index(
-                    rule,
-                    features,
-                    problem=env._problem_view(),
-                    state=env._state,
-                    metrics=env.current_metrics,
-                )
+                if self.action_equivalence_merge:
+                    groups, candidate_indices, dispatches = concrete_rule_action_groups(
+                        env,
+                        self.library,
+                        features,
+                        mask,
+                        merge_equivalent=True,
+                    )
+                    with torch.no_grad():
+                        rule_log_probs, value_tensor = self.agent(graph, mask)
+                        group_log_probs = aggregate_rule_log_probs(
+                            rule_log_probs, groups, mask
+                        )
+                        distribution = Categorical(logits=group_log_probs)
+                        group_tensor = distribution.sample()
+                        group_index = int(group_tensor.item())
+                        action = groups[group_index][0]
+                        log_prob = float(
+                            distribution.log_prob(group_tensor).item()
+                        )
+                        value = float(value_tensor.item())
+                    candidate_index = candidate_indices[action]
+                    concrete_dispatch = dispatches[action]
+                else:
+                    groups = ()
+                    group_index = None
+                    concrete_dispatch = None
+                    action, log_prob, value = self.agent.select_action(graph, mask)
+                    rule = self.library.get_rule(action)
+                    candidate_index = _rule_candidate_index(
+                        rule,
+                        features,
+                        problem=env._problem_view(),
+                        state=env._state,
+                        metrics=env.current_metrics,
+                    )
                 result = env.step_candidate(candidate_index)
+                if concrete_dispatch is not None:
+                    actual = (
+                        int(result.decision.job_id),
+                        int(result.decision.operation_id),
+                        int(result.decision.machine_id),
+                    )
+                    if actual != concrete_dispatch:
+                        raise RuntimeError(
+                            "stored action group does not match the actual dispatch"
+                        )
                 # result.reward is exactly -(F_cum(t_next) - F_cum(t_now)).
                 reward = (
                     float(result.reward)
@@ -400,6 +529,9 @@ class PPOTrainer:
                         reward=reward,
                         done=result.terminated,
                         action_mask=mask.clone(),
+                        action_groups=groups,
+                        action_group_index=group_index,
+                        concrete_dispatch=concrete_dispatch,
                     )
                 )
                 episode_reward += reward
@@ -444,9 +576,23 @@ class PPOTrainer:
             entropy_rows: list[torch.Tensor] = []
             for index, step in enumerate(buffer.steps):
                 log_probs, value = self.agent(step.graph, step.action_mask)
-                new_log_prob_rows.append(log_probs[step.action])
+                if step.action_groups:
+                    validate_action_groups(step.action_groups, step.action_mask)
+                    if step.action_group_index is None:
+                        raise ValueError("grouped rollout step lacks group index")
+                    group_log_probs = aggregate_rule_log_probs(
+                        log_probs, step.action_groups, step.action_mask
+                    )
+                    new_log_prob_rows.append(
+                        group_log_probs[step.action_group_index]
+                    )
+                    entropy_rows.append(
+                        Categorical(logits=group_log_probs).entropy()
+                    )
+                else:
+                    new_log_prob_rows.append(log_probs[step.action])
+                    entropy_rows.append(Categorical(logits=log_probs).entropy())
                 value_rows.append(value)
-                entropy_rows.append(Categorical(logits=log_probs).entropy())
 
             new_log_probs = torch.stack(new_log_prob_rows)
             values = torch.stack(value_rows)
@@ -494,6 +640,26 @@ class PPOTrainer:
             clip_fraction=total_clip_fraction / denominator,
             total_reward=float(mean_step_reward),
         )
+
+    @torch.no_grad()
+    def recompute_stored_log_probs(
+        self, buffer: RolloutBuffer
+    ) -> tuple[float, ...]:
+        """Re-evaluate immutable rollout actions under the current policy."""
+
+        values: list[float] = []
+        for step in buffer.steps:
+            rule_log_probs, _value = self.agent(step.graph, step.action_mask)
+            if step.action_groups:
+                if step.action_group_index is None:
+                    raise ValueError("grouped rollout step lacks group index")
+                grouped = aggregate_rule_log_probs(
+                    rule_log_probs, step.action_groups, step.action_mask
+                )
+                values.append(float(grouped[step.action_group_index].item()))
+            else:
+                values.append(float(rule_log_probs[step.action].item()))
+        return tuple(values)
 
     def train(
         self,

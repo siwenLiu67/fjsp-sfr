@@ -71,8 +71,7 @@ def resolve_runtime_library(value: str) -> Path:
     path = resolve_library(value)
     if path.exists() or value == "classic4":
         return path
-    fallback = resolve_library("classic4")
-    return fallback if fallback.exists() else path
+    raise FileNotFoundError(f"requested rule library does not exist: {path}")
 
 
 def variant_name(args) -> str:

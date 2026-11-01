@@ -41,6 +41,9 @@ def test_paper_contract_freezes_paper14_gamma_one_and_final_checkpoint():
 def test_contract_declares_action_equivalence_merge():
     assert PAPER_20261030.action_equivalence_merge is True
     assert LEGACY.action_equivalence_merge is False
+    assert not any(
+        "action-equivalence" in item for item in PAPER_20261030.blockers
+    )
 
 
 def test_contract_no_longer_declares_phase_one_blockers():

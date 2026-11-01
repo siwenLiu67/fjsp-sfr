@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import math
 import random
 from copy import deepcopy
 from dataclasses import dataclass, replace
@@ -367,14 +368,25 @@ class CAPPORuleSelectionEnv:
             if hasattr(principle, "is_applicable") and not principle.is_applicable(
                 tuple(max(column) for column in zip(*factor_rows, strict=True))
             ):
-                slack_index = feature_names_for(
-                    getattr(principle, "feature_set", "theory11")
-                ).index("due_date_slack")
-                scores = [-row[slack_index] for row in factor_rows]
+                scores = [
+                    -(
+                        float(problem.get_job(candidate.job_id).due_date)
+                        - float(candidate.optimistic_completion)
+                    )
+                    for candidate in candidates
+                ]
             else:
                 scores = principle.evaluate_batch(factor_rows)
         if len(scores) != len(candidates):
             raise ValueError("principle must return one score per candidate")
+        if scores and not any(math.isfinite(float(score)) for score in scores):
+            scores = [
+                -(
+                    float(problem.get_job(candidate.job_id).due_date)
+                    - float(candidate.optimistic_completion)
+                )
+                for candidate in candidates
+            ]
         candidate_index = max(range(len(scores)), key=scores.__getitem__)
         candidate = candidates[candidate_index]
         assert self.current_metrics.machine_id is not None

@@ -26,6 +26,10 @@ from fjsp_sfr.env.ca_observation import (
 )
 from fjsp_sfr.env.ca_rule_tokens import RULE_TOKEN_FEATURES
 from fjsp_sfr.env.ca_rule_selection import CADecisionObservation, CAPPORuleSelectionEnv
+from fjsp_sfr.rl.action_groups import (
+    aggregate_rule_log_probs,
+    build_action_groups as build_concrete_action_groups,
+)
 
 from .relational_encoder import (
     CandidateCheckpointRelationalAttentionEncoder,
@@ -914,11 +918,11 @@ def build_action_groups(
     if len(observation.action_candidate_keys) != len(observation.action_mask):
         raise ValueError("every rule must have one concrete action candidate key")
 
-    grouped: dict[tuple[int, int], list[int]] = {}
-    for rule_id in applicable:
-        key = observation.action_candidate_keys[rule_id]
-        grouped.setdefault(key, []).append(rule_id)
-    return tuple(tuple(rule_ids) for rule_ids in grouped.values())
+    return build_concrete_action_groups(
+        observation.action_candidate_keys,
+        observation.action_mask,
+        merge_equivalent=True,
+    )
 
 
 def _validate_action_groups(
@@ -952,13 +956,7 @@ def aggregate_action_group_logits(
     rows: list[torch.Tensor] = []
     masks: list[list[bool]] = []
     for row, groups in enumerate(action_groups):
-        values = [
-            torch.logsumexp(
-                rule_logits[row, torch.tensor(group, device=rule_logits.device)],
-                dim=0,
-            )
-            for group in groups
-        ]
+        values = list(aggregate_rule_log_probs(rule_logits[row], groups))
         if len(values) < max_groups:
             values.extend(
                 rule_logits.new_zeros(()) for _ in range(max_groups - len(values))

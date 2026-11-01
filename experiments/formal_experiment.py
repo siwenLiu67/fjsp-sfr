@@ -42,7 +42,8 @@ from fjsp_sfr.rl.dqn_agent import DQNTrainer, HGTDQNAgent
 from fjsp_sfr.rl.graph import apply_information_masks, build_hetero_graph
 from fjsp_sfr.rl.mlp_agent import MLPPPOAgent
 from fjsp_sfr.rl.ppo_agent import HGTPPOAgent
-from fjsp_sfr.rl.ppo_trainer import PPOTrainer
+from fjsp_sfr.rl.action_groups import aggregate_rule_log_probs
+from fjsp_sfr.rl.ppo_trainer import PPOTrainer, concrete_rule_action_groups
 from fjsp_sfr.rl.reward_scale import load_global_reward_scale
 
 
@@ -66,6 +67,22 @@ def load_library(path: str | None) -> RuleLibrary:
 
 
 def graph_for(
+    env,
+    *,
+    contract: FormalExperimentContract,
+    mask_checkpoint=False,
+    mask_forecast=False,
+):
+    graph, _rows = graph_and_features_for(
+        env,
+        contract=contract,
+        mask_checkpoint=mask_checkpoint,
+        mask_forecast=mask_forecast,
+    )
+    return graph
+
+
+def graph_and_features_for(
     env,
     *,
     contract: FormalExperimentContract,
@@ -96,7 +113,7 @@ def graph_for(
         feature_set=contract.feature_set,
         mask_checkpoint=mask_checkpoint,
         mask_forecast=mask_forecast,
-    )
+    ), rows
 
 
 def make_agent(
@@ -145,6 +162,7 @@ def evaluate_episode(
     contract: FormalExperimentContract,
     mask_checkpoint=False,
     mask_forecast=False,
+    action_equivalence_merge: bool | None = None,
 ):
     rollout = deepcopy(instance)
     env = CAPPORuleSelectionEnv(rollout)
@@ -152,6 +170,11 @@ def evaluate_episode(
     usage = Counter()
     probabilities, actions = [], []
     decision_seconds = 0.0
+    merge_actions = (
+        contract.action_equivalence_merge
+        if action_equivalence_merge is None
+        else bool(action_equivalence_merge)
+    )
     while env.current_metrics and env.current_metrics.is_active:
         if selector == "random":
             action = rng.randrange(library.action_size())
@@ -160,7 +183,7 @@ def evaluate_episode(
             action = int(fixed_action)
             probs = [float(index == action) for index in range(library.action_size())]
         else:
-            graph = graph_for(
+            graph, factor_rows = graph_and_features_for(
                 env,
                 contract=contract,
                 mask_checkpoint=mask_checkpoint,
@@ -177,14 +200,40 @@ def evaluate_episode(
                         graph, torch.ones(library.action_size(), dtype=torch.bool)
                     )
                     probs_tensor = log_probs.exp()
-                    action = int(log_probs.argmax().item())
+                    if merge_actions:
+                        mask = torch.ones(
+                            library.action_size(), dtype=torch.bool
+                        )
+                        groups, candidate_indices, _dispatches = (
+                            concrete_rule_action_groups(
+                                env,
+                                library,
+                                factor_rows,
+                                mask,
+                                merge_equivalent=True,
+                            )
+                        )
+                        group_log_probs = aggregate_rule_log_probs(
+                            log_probs, groups, mask
+                        )
+                        group_index = int(group_log_probs.argmax().item())
+                        action = groups[group_index][0]
+                        grouped_candidate_index = candidate_indices[action]
+                    else:
+                        action = int(log_probs.argmax().item())
             decision_seconds += time.perf_counter() - started
             probs = probs_tensor.cpu().tolist()
         probabilities.append(probs)
         actions.append(action)
         rule = library.get_rule(action)
         usage[rule.name] += 1
-        result = env.step_principle(action, rule)
+        if (
+            selector not in {"random", "fixed", "dqn"}
+            and merge_actions
+        ):
+            result = env.step_candidate(grouped_candidate_index)
+        else:
+            result = env.step_principle(action, rule)
         if result.terminated:
             break
     objective = compute_objective(rollout, env._state)
@@ -260,6 +309,9 @@ def train_ppo(
     contract,
     global_f_ref: float | None = None,
 ):
+    # The frozen protocol uses validation only before formal training for
+    # prespecified hyperparameter selection; it never selects an interim model.
+    del validation_instances
     agent = make_agent(args.selector, library.action_size(), contract=contract)
     trainer = PPOTrainer(
         agent=agent,
@@ -283,9 +335,12 @@ def train_ppo(
             if global_f_ref is not None
             else "legacy_per_instance"
         ),
+        action_equivalence_merge=(
+            contract.action_equivalence_merge
+            and not args.disable_action_equivalence_merge
+        ),
     )
     updates = math.ceil(args.episodes / args.episodes_per_update)
-    best_state, best_value = None, float("inf")
     started = time.perf_counter()
     for update in range(updates):
         trainer.entropy_coef = linear_schedule(0.02, 0.002, update, updates)
@@ -294,22 +349,6 @@ def train_ppo(
             group["lr"] = lr
         count = min(args.episodes_per_update, args.episodes - update * args.episodes_per_update)
         trainer.train(1, count)
-        if (update + 1) % max(1, updates // 10) == 0 or update + 1 == updates:
-            values, _metrics = evaluate_set(
-                library,
-                validation_instances,
-                VALIDATION_SEEDS[: len(validation_instances)],
-                contract=contract,
-                selector=args.selector,
-                agent=agent,
-                mask_checkpoint=args.mask_checkpoint,
-                mask_forecast=args.mask_forecast,
-            )
-            mean = statistics.fmean(item["F"] for item in values)
-            if mean < best_value:
-                best_value = mean
-                best_state = deepcopy(agent.state_dict())
-    agent.load_state_dict(best_state or agent.state_dict())
     return agent, time.perf_counter() - started
 
 
@@ -391,6 +430,14 @@ def run(args):
         )
         if state.get("f_ref") != expected_f_ref:
             raise ValueError("checkpoint global F_ref mismatch")
+        expected_merge = (
+            contract.action_equivalence_merge
+            and not args.disable_action_equivalence_merge
+        )
+        if state.get("action_equivalence_merge") != expected_merge:
+            raise ValueError("checkpoint action-equivalence setting mismatch")
+        if state.get("checkpoint_semantics") != "final_training":
+            raise ValueError("formal evaluation requires the final training model")
         agent.load_state_dict(state["agent_state_dict"])
     elif args.selector in {"hgt_ppo", "mlp_ppo"}:
         agent, training_seconds = train_ppo(
@@ -437,8 +484,13 @@ def run(args):
                     else None
                 ),
                 "f_ref_manifest_sha256": file_sha256(args.f_ref_manifest),
+                "action_equivalence_merge": (
+                    contract.action_equivalence_merge
+                    and not args.disable_action_equivalence_merge
+                ),
+                "checkpoint_semantics": "final_training",
             },
-            output / "best.pt",
+            output / "final.pt",
         )
 
     test_seeds = TEST_SEEDS_BY_SCALE[eval_scale]
@@ -458,6 +510,10 @@ def run(args):
         fixed_action=fixed_action,
         mask_checkpoint=args.mask_checkpoint,
         mask_forecast=args.mask_forecast,
+        action_equivalence_merge=(
+            contract.action_equivalence_merge
+            and not args.disable_action_equivalence_merge
+        ),
     )
     csv_path = output / "per_instance.csv"
     with csv_path.open("w", encoding="utf-8", newline="") as handle:
@@ -475,6 +531,10 @@ def run(args):
         "selector": args.selector,
         "mask_checkpoint": args.mask_checkpoint,
         "mask_forecast": args.mask_forecast,
+        "action_equivalence_merge": (
+            contract.action_equivalence_merge
+            and not args.disable_action_equivalence_merge
+        ),
         "episodes": args.episodes,
         "episodes_per_update": args.episodes_per_update,
         "f_ref": (
@@ -535,6 +595,11 @@ def parse_args(argv=None):
     parser.add_argument("--episodes-per-update", type=int, default=32)
     parser.add_argument("--mask-checkpoint", action="store_true")
     parser.add_argument("--mask-forecast", action="store_true")
+    parser.add_argument(
+        "--disable-action-equivalence-merge",
+        action="store_true",
+        help="ablation: use raw rule-index PPO probabilities",
+    )
     parser.add_argument("--checkpoint")
     parser.add_argument(
         "--f-ref-manifest",

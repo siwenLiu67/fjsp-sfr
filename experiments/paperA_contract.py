@@ -58,7 +58,6 @@ PAPER_20261030 = FormalExperimentContract(
     evaluation_checkpoint="final_training",
     runtime_ready=False,
     blockers=(
-        "action-equivalence merging is not integrated into the official PPO path",
         "C1-C4 and D1-D2 critic variants are not implemented",
     ),
 )
