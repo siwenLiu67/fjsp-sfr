@@ -72,6 +72,7 @@ class DQNTrainer:
         epsilon_end: float = 0.05,
         mask_checkpoint: bool = False,
         mask_forecast: bool = False,
+        fixed_f_ref: float | None = None,
     ) -> None:
         self.agent = agent
         self.target = deepcopy(agent)
@@ -88,6 +89,9 @@ class DQNTrainer:
         self.epsilon_end = float(epsilon_end)
         self.mask_checkpoint = bool(mask_checkpoint)
         self.mask_forecast = bool(mask_forecast)
+        if fixed_f_ref is not None and fixed_f_ref <= 0.0:
+            raise ValueError("fixed_f_ref must be positive")
+        self.fixed_f_ref = None if fixed_f_ref is None else float(fixed_f_ref)
         self.replay: deque[DQNTransition] = deque(maxlen=replay_capacity)
         self.optimizer = torch.optim.Adam(agent.parameters(), lr=lr)
         self.global_episode_count = 0
@@ -116,6 +120,8 @@ class DQNTrainer:
         )
 
     def _f_ref(self, instance) -> float:
+        if self.fixed_f_ref is not None:
+            return self.fixed_f_ref
         values = []
         for index, rule in enumerate(self.library.rules):
             copy = deepcopy(instance)

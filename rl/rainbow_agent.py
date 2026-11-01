@@ -160,12 +160,16 @@ class RainbowTrainer:
         feature_set: str = "theory11_plus3",
         mask_checkpoint: bool = False,
         mask_forecast: bool = False,
+        fixed_f_ref: float | None = None,
     ) -> None:
         self.agent, self.target = agent, deepcopy(agent); self.target.eval()
         self.library, self.instance_factory, self.base_seed = library, instance_factory, int(base_seed)
         self.gamma, self.reward_scale, self.n_step = float(gamma), float(reward_scale), int(n_step)
         self.batch_size, self.target_update_interval = int(batch_size), int(target_update_interval)
         self.feature_set, self.mask_checkpoint, self.mask_forecast = feature_set, mask_checkpoint, mask_forecast
+        if fixed_f_ref is not None and fixed_f_ref <= 0.0:
+            raise ValueError("fixed_f_ref must be positive")
+        self.fixed_f_ref = None if fixed_f_ref is None else float(fixed_f_ref)
         self.replay = PrioritizedReplay(replay_capacity); self.optimizer = torch.optim.Adam(agent.parameters(), lr=lr)
         self.global_episode_count = 0; self.gradient_steps = 0
 
@@ -177,6 +181,8 @@ class RainbowTrainer:
         return apply_information_masks(graph, feature_set=self.feature_set, mask_checkpoint=self.mask_checkpoint, mask_forecast=self.mask_forecast)
 
     def _f_ref(self, instance) -> float:
+        if self.fixed_f_ref is not None:
+            return self.fixed_f_ref
         values = []
         for index, rule in enumerate(self.library.rules):
             copy = deepcopy(instance); env = CAPPORuleSelectionEnv(copy); env.reset()

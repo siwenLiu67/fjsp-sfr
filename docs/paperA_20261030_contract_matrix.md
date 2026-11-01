@@ -20,10 +20,10 @@ Status terms are **aligned**, **partial**, **incompatible**, **missing**, and
 
 | Manuscript contract | Required behavior | Current module/function | Authoritative test | P0 status and exact incompatibility |
 | --- | --- | --- | --- | --- |
-| Sec.4.6, Eqs. `cert-vis`, `cert-fut-on`, `cert-fut-priv`, `cert-interval` | Deterministic online and training-privileged shortage intervals, intersected along the observed trajectory; Actor never sees privileged future attributes. | No audited certificate state/module exists. `dispatch/ca_metrics.py::compute_ca_decision_metrics` provides reachability/capacity quantities only; `rl/graph.py::_build_paper_graph` has no interval endpoints. | `tests/test_paperA_20261030_contract_freeze.py::test_contract_declares_certificate_blocker` (registry); numerical tests belong to Phase 1. | **missing**; Phase 1 blocker. Online/privileged information isolation remains mandatory. |
+| Sec.4.6, Eqs. `cert-vis`, `cert-fut-on`, `cert-fut-priv`, `cert-interval` | Deterministic online and training-privileged shortage intervals, intersected along the observed trajectory; Actor never sees privileged future attributes. | `dispatch/certificates.py` computes both constructions and their monotone history; `env/ca_rule_selection.py` exposes only online endpoints through checkpoint metrics and keeps the immutable privileged record behind an opt-in Critic API. | `tests/test_paper_certificates.py` hand examples, hidden-future invariance, snapshot, contradiction and reachable-trajectory coverage tests. | **aligned in Phase 1**; the 12-dimensional graph consumption of the two public endpoints remains Phase 2. |
 | Sec.5.1 Table `tab:feat` | Job/Machine/Checkpoint widths are 14/2/12; the final two checkpoint coordinates are online interval endpoints. | `rl/graph.py::_build_paper_graph` emits 14/2/**10**; `checkpoint_rows` omits both endpoints. | `test_authoritative_paper_graph_has_14_2_12_inputs` | **incompatible**; executable test fails 10 vs 12. Phase 2 owns implementation. |
 | Sec.5.1 Eq. `crg` | Relation-wise GATv2 softmax, timely/non-timely checkpoint relations and reverse relations, relation-message sum, LayerNorm, zero-message branch. | `rl/hgt.py::HGTLayer` uses ReLU scores, degree averaging, and one unsplit `job_checkpoint` relation. | `test_contract_declares_crg_gatv2` (declaration); numerical attention tests belong to Phase 2. | **missing/incompatible**; Phase 2 blocker. |
-| Sec.5.3 Eq. `global-reward-scale` | One positive scalar from the independent calibration set: mean of SPT and ATC objectives; fixed across instances and matched libraries/methods. | `rl/ppo_trainer.py::PPOTrainer._compute_instance_f_ref` averages every rule in the active library; `collect_rollout` recomputes it for every streamed instance. | `test_authoritative_streaming_ppo_does_not_recompute_f_ref_per_instance`; existing `test_paper_contract_f_f_ref_is_spt_atc_mean_and_library_invariant` | **incompatible**; both tests expose per-instance/library dependence. Phase 1 owns the change. |
+| Sec.5.3 Eq. `global-reward-scale` | One positive scalar from the independent calibration set: mean of SPT and ATC objectives; fixed across instances and matched libraries/methods. | `rl/reward_scale.py` computes and hash-verifies the calibration manifest; `PPOTrainer(reward_reference_mode="global_calibration")` and optional fixed references in matched trainers reuse the scalar. Legacy per-instance behavior remains explicit and unchanged. | `test_authoritative_streaming_ppo_does_not_recompute_f_ref_per_instance`, `test_global_reward_scale_manifest_and_trainer_path`, and the updated Group-F contract. | **aligned in Phase 1**; corrected formal runs require a manifest and checkpoints validate its hash. |
 | Sec.5.3 Eqs. `rew`, `cert-gae`; Sec.6 Table `tab:hyper` | SC-PPO uses `gamma=1`; reward is the true cost increment divided by the fixed global scale. | `rl/ppo_trainer.py` accepts `gamma`; the historical formal entry hard-coded `0.99`. `experiments/paperA_contract.py::PAPER_20261030` freezes `1.0`. | `test_paper_contract_freezes_paper14_gamma_one_and_final_checkpoint` | **frozen/gated**; formal value is explicit while runnable legacy remains 0.99. Phase 1/3 must wire the scale and official trainer. |
 | Sec.5.4 Eq. `equiv` | Merge rules by actual selected job; behavior probability, PPO ratio and entropy use the aggregate distribution; all-equal actions have zero Actor gradient. | `agents/ca_ppo.py::build_action_groups` and `aggregate_action_group_logits` implement reusable grouping. `rl/ppo_trainer.py` still samples rule indices. | `test_contract_declares_action_equivalence_merge` (declaration); integration tests belong to Phase 3. | **partial**; utility exists off the official path. |
 | Sec.6.4 Table `tab:critic` | C1 scalar; C2 online-only decomposed; C3 privileged unconstrained decomposed; C4 privileged interval-constrained scalar heads, with matched public encoder/data/budget. | No C1--C4 variant API in the official path. | `test_contract_declares_critic_variant_blocker` | **missing**; Phase 3. |
@@ -96,3 +96,21 @@ These are manuscript TBDs, not values to infer from old code:
    be pre-registered before viewing method results.
 
 No value above is supplied by the `legacy` configuration.
+
+## Phase-1 evidence
+
+- `dispatch/certificates.py` implements the online and opt-in Critic-only
+  constructions, with independent monotone history and explicit contradiction
+  errors.  Public checkpoint metrics contain only `online_shortfall_lower` and
+  `online_shortfall_upper`; P2 remains responsible for adding them to the
+  12-dimensional paper graph.
+- `experiments/paperA_global_f_ref.json` was computed only from center-scenario
+  seeds 25100--25129.  Its fixed value is `1872.4027777777778` and its canonical
+  payload SHA-256 is
+  `f41f822755a4a5ea28a2497dd91b48c81e774047a7e7e40a64a58e158c125b1b`.
+- Phase-1 numerical tests cover hand-derived endpoints, forecast exclusion,
+  hidden-future invariance, snapshot restoration, degenerate and contradictory
+  intervals, and terminal reward telescoping.  Three additional center-scenario
+  random feasible trajectories produced 10,084/10,084 online and privileged
+  certificate inclusions, with only floating-point telescoping error below
+  `2e-12`.

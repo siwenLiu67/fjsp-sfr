@@ -59,10 +59,8 @@ PAPER_20261030 = FormalExperimentContract(
     evaluation_checkpoint="final_training",
     runtime_ready=False,
     blockers=(
-        "online and privileged interval certificates are not implemented",
         "paper_graph checkpoint nodes have 10 rather than 12 features",
         "CRG relation-wise GATv2 is not implemented",
-        "the official PPO path still recomputes F_ref per training instance",
         "action-equivalence merging is not integrated into the official PPO path",
         "C1-C4 and D1-D2 critic variants are not implemented",
     ),

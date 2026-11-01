@@ -52,6 +52,11 @@ class CheckpointMetrics:
     timely_job_ids: tuple[int, ...] = ()
     additional_job_ids: tuple[int, ...] = ()
     eligible_machine_ids: tuple[int, ...] = ()
+    # Public Sec. 4.6 trajectory-intersected certificate endpoints.  They are
+    # populated by the environment after same-time events and intentionally do
+    # not contain any privileged future summary.
+    online_shortfall_lower: float | None = None
+    online_shortfall_upper: float | None = None
 
 
 @dataclass(frozen=True)

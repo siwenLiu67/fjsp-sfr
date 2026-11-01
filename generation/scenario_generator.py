@@ -281,6 +281,14 @@ def make_instance(
             "forecast_horizon": final_checkpoint_time,
             "forecast_bucket_length_status": "not_required_for_homogeneous_moments",
             "forecast_risk_kappa_status": "model_default_author_confirmation_required",
+            "certificate_public_bounds": {
+                "planned_total_jobs": total_jobs,
+                "planned_initial_jobs": initial_jobs,
+                "planned_new_jobs": int(new_jobs),
+                "quantity_upper_bound": quantity_high,
+                "minimum_job_work": op_low * proc_low,
+                "source": "published_scenario_generation_bounds",
+            },
         },
     )
 

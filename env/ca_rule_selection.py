@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import random
 from copy import deepcopy
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 
 from fjsp_sfr.core.events import Event, EventType
 from fjsp_sfr.core.forecast import empty_forecast_snapshot
@@ -13,6 +13,12 @@ from fjsp_sfr.core.objective import ObjectiveResult, compute_objective
 from fjsp_sfr.core.online import OnlineProblemView
 from fjsp_sfr.core.state import ScheduleState
 from fjsp_sfr.dispatch.ca_metrics import CADecisionMetrics, build_ca_decision_metrics
+from fjsp_sfr.dispatch.certificates import (
+    CertificateHistory,
+    OnlineCheckpointCertificate,
+    PrivilegedCertificateRecord,
+    update_active_certificates,
+)
 from fjsp_sfr.dispatch.ca_rules import rule_applicability_mask, select_job
 from fjsp_sfr.dispatch.types import DirectCandidateDecision, RuleAction, RuleDecision
 
@@ -85,6 +91,10 @@ class CAEnvironmentSnapshot:
     environment_random_sources: dict[str, random.Random]
     instance_random_sources: dict[str, random.Random]
     forecast_random_sources: dict[str, random.Random]
+    certificate_history: CertificateHistory
+    online_certificates: tuple[OnlineCheckpointCertificate, ...]
+    critic_certificate_record: PrivilegedCertificateRecord
+    privileged_certificates_enabled: bool
 
 
 def _copy_random_sources(owner: object | None) -> dict[str, random.Random]:
@@ -116,17 +126,26 @@ class CAPPORuleSelectionEnv:
         time_scale: float | None = None,
         processing_scale: float | None = None,
         coverage_cap: float = 2.0,
+        enable_privileged_certificates: bool = False,
     ) -> None:
         self.instance = instance
         self.time_scale = time_scale
         self.processing_scale = processing_scale
         self.coverage_cap = coverage_cap
+        self._privileged_certificates_enabled = bool(
+            enable_privileged_certificates
+        )
         self._state = ScheduleState()
         self._visible_job_ids: set[int] = set()
         self._decision_index = 0
         self._current_metrics: CADecisionMetrics | None = None
         self._terminated = False
         self._has_reset = False
+        self._certificate_history = CertificateHistory()
+        self._online_certificates: dict[
+            tuple[int, int], OnlineCheckpointCertificate
+        ] = {}
+        self._critic_certificate_record = PrivilegedCertificateRecord(0)
 
     @property
     def current_metrics(self) -> CADecisionMetrics:
@@ -139,6 +158,32 @@ class CAPPORuleSelectionEnv:
         if not self._has_reset:
             raise RuntimeError("reset must be called before reading state")
         return self._state.copy_for_algorithm()
+
+    @property
+    def online_certificates(
+        self,
+    ) -> tuple[OnlineCheckpointCertificate, ...]:
+        """Return public active certificate records in checkpoint-key order."""
+
+        return tuple(
+            self._online_certificates[key]
+            for key in sorted(self._online_certificates)
+        )
+
+    @property
+    def critic_certificate_record(self) -> PrivilegedCertificateRecord:
+        """Return the immutable training-only certificate record.
+
+        This explicit API is for the future training Critic.  It is not part of
+        :class:`CADecisionObservation`, online metrics, rule inputs, or graph
+        arrays, so Actor-side callers never receive it implicitly.
+        """
+
+        if not self._privileged_certificates_enabled:
+            raise RuntimeError(
+                "privileged certificates were not enabled for this environment"
+            )
+        return self._critic_certificate_record
 
     def snapshot(self) -> CAEnvironmentSnapshot:
         """Capture an isolated counterfactual branch point.
@@ -169,6 +214,10 @@ class CAPPORuleSelectionEnv:
             environment_random_sources=_copy_random_sources(self),
             instance_random_sources=_copy_random_sources(self.instance),
             forecast_random_sources=_copy_random_sources(provider),
+            certificate_history=deepcopy(self._certificate_history),
+            online_certificates=deepcopy(self.online_certificates),
+            critic_certificate_record=deepcopy(self._critic_certificate_record),
+            privileged_certificates_enabled=self._privileged_certificates_enabled,
         )
 
     @classmethod
@@ -181,6 +230,9 @@ class CAPPORuleSelectionEnv:
             time_scale=snapshot.time_scale,
             processing_scale=snapshot.processing_scale,
             coverage_cap=snapshot.coverage_cap,
+            enable_privileged_certificates=(
+                snapshot.privileged_certificates_enabled
+            ),
         )
         env._state = deepcopy(snapshot.state)
         env._visible_job_ids = set(snapshot.visible_job_ids)
@@ -188,6 +240,14 @@ class CAPPORuleSelectionEnv:
         env._current_metrics = deepcopy(snapshot.current_metrics)
         env._terminated = snapshot.terminated
         env._has_reset = snapshot.has_reset
+        env._certificate_history = deepcopy(snapshot.certificate_history)
+        env._online_certificates = {
+            certificate.checkpoint_key: deepcopy(certificate)
+            for certificate in snapshot.online_certificates
+        }
+        env._critic_certificate_record = deepcopy(
+            snapshot.critic_certificate_record
+        )
         _restore_random_sources(env, snapshot.environment_random_sources)
         _restore_random_sources(env.instance, snapshot.instance_random_sources)
         _restore_random_sources(
@@ -214,6 +274,9 @@ class CAPPORuleSelectionEnv:
         self._current_metrics = None
         self._terminated = False
         self._has_reset = True
+        self._certificate_history = CertificateHistory()
+        self._online_certificates = {}
+        self._critic_certificate_record = PrivilegedCertificateRecord(0)
         observation = self._advance_to_decision()
         if observation is None:
             raise RuntimeError("instance terminated without an active decision")
@@ -388,6 +451,34 @@ class CAPPORuleSelectionEnv:
             problem = self._problem_view()
             metrics = build_ca_decision_metrics(problem, self._state)
             if metrics.is_active:
+                online, privileged = update_active_certificates(
+                    problem,
+                    self.instance,
+                    self._state,
+                    self._certificate_history,
+                    include_privileged=self._privileged_certificates_enabled,
+                )
+                self._online_certificates = online
+                self._critic_certificate_record = privileged
+                metrics = replace(
+                    metrics,
+                    checkpoints={
+                        key: replace(
+                            checkpoint,
+                            online_shortfall_lower=(
+                                online[key].historical.lower
+                                if key in online
+                                else None
+                            ),
+                            online_shortfall_upper=(
+                                online[key].historical.upper
+                                if key in online
+                                else None
+                            ),
+                        )
+                        for key, checkpoint in metrics.checkpoints.items()
+                    },
+                )
                 assert metrics.machine_id is not None
                 raw = build_ca_observation(
                     problem,
@@ -437,6 +528,10 @@ class CAPPORuleSelectionEnv:
                 )
             if not self._state.event_queue:
                 self._current_metrics = None
+                self._online_certificates = {}
+                self._critic_certificate_record = PrivilegedCertificateRecord(
+                    self._state.current_time
+                )
                 if len(self._state.completed_jobs) != self.instance.num_jobs:
                     raise RuntimeError("event queue exhausted before all jobs completed")
                 self._terminated = True

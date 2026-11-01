@@ -43,8 +43,9 @@ def test_contract_declares_action_equivalence_merge():
     assert LEGACY.action_equivalence_merge is False
 
 
-def test_contract_declares_certificate_blocker():
-    assert any("certificates" in item for item in PAPER_20261030.blockers)
+def test_contract_no_longer_declares_phase_one_blockers():
+    assert not any("certificates" in item for item in PAPER_20261030.blockers)
+    assert not any("F_ref" in item for item in PAPER_20261030.blockers)
 
 
 def test_contract_declares_crg_gatv2():
@@ -125,6 +126,7 @@ def test_authoritative_streaming_ppo_does_not_recompute_f_ref_per_instance(
         instance_factory=lambda _seed: instance,
         base_seed=50_000,
         f_ref=123.0,
+        reward_reference_mode="global_calibration",
     )
 
     def forbidden_per_instance_reference(_instance):

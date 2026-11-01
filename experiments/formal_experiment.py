@@ -37,11 +37,13 @@ from fjsp_sfr.experiments.paperA_contract import (
 from fjsp_sfr.experiments.train_streaming import linear_schedule
 from fjsp_sfr.experiments.validate_framework import build_rule_library
 from fjsp_sfr.generation.scale_config import make_scaled_instance
+from fjsp_sfr.generation.scenario_generator import seed_values
 from fjsp_sfr.rl.dqn_agent import DQNTrainer, HGTDQNAgent
 from fjsp_sfr.rl.graph import apply_information_masks, build_hetero_graph
 from fjsp_sfr.rl.mlp_agent import MLPPPOAgent
 from fjsp_sfr.rl.ppo_agent import HGTPPOAgent
 from fjsp_sfr.rl.ppo_trainer import PPOTrainer
+from fjsp_sfr.rl.reward_scale import load_global_reward_scale
 
 
 # Historical compatibility constant.  New callers must select a named
@@ -244,7 +246,15 @@ def evaluate_set(library, instances, seeds, *, contract, **policy):
     }
 
 
-def train_ppo(args, library, instance_factory, validation_instances, *, contract):
+def train_ppo(
+    args,
+    library,
+    instance_factory,
+    validation_instances,
+    *,
+    contract,
+    global_f_ref: float | None = None,
+):
     agent = make_agent(args.selector, library.action_size(), contract=contract)
     trainer = PPOTrainer(
         agent=agent,
@@ -261,6 +271,12 @@ def train_ppo(args, library, instance_factory, validation_instances, *, contract
         feature_set=contract.feature_set,
         mask_checkpoint=args.mask_checkpoint,
         mask_forecast=args.mask_forecast,
+        f_ref=global_f_ref if global_f_ref is not None else 1.0,
+        reward_reference_mode=(
+            "global_calibration"
+            if global_f_ref is not None
+            else "legacy_per_instance"
+        ),
     )
     updates = math.ceil(args.episodes / args.episodes_per_update)
     best_state, best_value = None, float("inf")
@@ -291,7 +307,9 @@ def train_ppo(args, library, instance_factory, validation_instances, *, contract
     return agent, time.perf_counter() - started
 
 
-def train_dqn(args, library, instance_factory, *, contract):
+def train_dqn(
+    args, library, instance_factory, *, contract, global_f_ref: float | None = None
+):
     agent = make_agent("dqn", library.action_size(), contract=contract)
     trainer = DQNTrainer(
         agent,
@@ -304,6 +322,7 @@ def train_dqn(args, library, instance_factory, *, contract):
         reward_scale=10.0,
         mask_checkpoint=args.mask_checkpoint,
         mask_forecast=args.mask_forecast,
+        fixed_f_ref=global_f_ref,
     )
     started = time.perf_counter()
     trainer.train(args.episodes)
@@ -313,6 +332,22 @@ def train_dqn(args, library, instance_factory, *, contract):
 def run(args):
     contract = resolve_formal_contract(args.contract_config)
     require_runtime_ready(contract)
+    global_reward_scale = None
+    if contract.reward_reference == "global_calibration_spt_atc_mean":
+        if not args.f_ref_manifest:
+            raise ValueError(
+                "paper_20261030 requires --f-ref-manifest from the independent "
+                "calibration split"
+            )
+        global_reward_scale = load_global_reward_scale(args.f_ref_manifest)
+        if global_reward_scale.calibration_partition != "calibration_center":
+            raise ValueError("global F_ref must use the calibration_center split")
+        if global_reward_scale.scenario != "center":
+            raise ValueError("global F_ref must be calibrated on the center scenario")
+        if global_reward_scale.calibration_seeds != seed_values(
+            "calibration_center"
+        ):
+            raise ValueError("global F_ref calibration seeds do not match the frozen split")
     output = Path(args.output_dir)
     output.mkdir(parents=True, exist_ok=True)
     summary_path = output / "summary.json"
@@ -340,6 +375,16 @@ def run(args):
             raise ValueError("checkpoint selector mismatch")
         if state.get("library_sha256") != expected_hash:
             raise ValueError("checkpoint rule-library hash mismatch")
+        expected_f_ref_hash = file_sha256(args.f_ref_manifest)
+        if state.get("f_ref_manifest_sha256") != expected_f_ref_hash:
+            raise ValueError("checkpoint reward-scale manifest hash mismatch")
+        expected_f_ref = (
+            global_reward_scale.f_ref
+            if global_reward_scale is not None
+            else None
+        )
+        if state.get("f_ref") != expected_f_ref:
+            raise ValueError("checkpoint global F_ref mismatch")
         agent.load_state_dict(state["agent_state_dict"])
     elif args.selector in {"hgt_ppo", "mlp_ppo"}:
         agent, training_seconds = train_ppo(
@@ -348,10 +393,23 @@ def run(args):
             instance_factory,
             validation_instances,
             contract=contract,
+            global_f_ref=(
+                global_reward_scale.f_ref
+                if global_reward_scale is not None
+                else None
+            ),
         )
     elif args.selector == "dqn":
         agent, training_seconds = train_dqn(
-            args, library, instance_factory, contract=contract
+            args,
+            library,
+            instance_factory,
+            contract=contract,
+            global_f_ref=(
+                global_reward_scale.f_ref
+                if global_reward_scale is not None
+                else None
+            ),
         )
     elif args.selector == "fixed":
         fixed_action = best_fixed_action(
@@ -367,6 +425,12 @@ def run(args):
                 "scale": args.scale,
                 "difficulty": args.difficulty,
                 "seed": args.seed,
+                "f_ref": (
+                    global_reward_scale.f_ref
+                    if global_reward_scale is not None
+                    else None
+                ),
+                "f_ref_manifest_sha256": file_sha256(args.f_ref_manifest),
             },
             output / "best.pt",
         )
@@ -407,6 +471,13 @@ def run(args):
         "mask_forecast": args.mask_forecast,
         "episodes": args.episodes,
         "episodes_per_update": args.episodes_per_update,
+        "f_ref": (
+            global_reward_scale.f_ref
+            if global_reward_scale is not None
+            else None
+        ),
+        "f_ref_manifest": args.f_ref_manifest,
+        "f_ref_manifest_sha256": file_sha256(args.f_ref_manifest),
         "smoke": args.smoke,
         "means": {
             key: statistics.fmean(row[key] for row in rows)
@@ -426,6 +497,12 @@ def run(args):
             "kind": "formal_experiment",
             "contract_config": contract.name,
             "library_sha256": file_sha256(args.library_file),
+            "f_ref_manifest_sha256": file_sha256(args.f_ref_manifest),
+            "f_ref": (
+                global_reward_scale.f_ref
+                if global_reward_scale is not None
+                else None
+            ),
             "test_seeds": list(test_seeds),
             "config": {key: value for key, value in vars(args).items() if key != "force"},
         },
@@ -453,6 +530,10 @@ def parse_args(argv=None):
     parser.add_argument("--mask-checkpoint", action="store_true")
     parser.add_argument("--mask-forecast", action="store_true")
     parser.add_argument("--checkpoint")
+    parser.add_argument(
+        "--f-ref-manifest",
+        help="fixed global reward-scale manifest required by paper_20261030",
+    )
     parser.add_argument("--output-dir", required=True)
     parser.add_argument("--smoke", action="store_true")
     parser.add_argument("--force", action="store_true")

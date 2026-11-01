@@ -367,6 +367,14 @@ def generate_instance(
             "bucket_size": config.bucket_size,
             "forecast_horizon_buckets": config.forecast_horizon_buckets,
             "forecast_update_interval": config.forecast_update_interval,
+            "certificate_public_bounds": {
+                "planned_total_jobs": config.num_jobs,
+                "quantity_upper_bound": config.quantity_range[1],
+                "minimum_job_work": (
+                    config.ops_per_job[0] * config.proc_time_range[0]
+                ),
+                "source": "published_instance_config_bounds",
+            },
         },
     )
 

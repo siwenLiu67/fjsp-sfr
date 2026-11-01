@@ -66,6 +66,7 @@ from fjsp_sfr.generation.scenario_generator import make_scenario_instance
 from fjsp_sfr.rl.graph import PAPER_GRAPH, apply_information_masks, build_hetero_graph
 from fjsp_sfr.rl.hgt import HGTEncoder
 from fjsp_sfr.rl.ppo_trainer import PPOTrainer
+from fjsp_sfr.rl.reward_scale import compute_global_reward_scale
 
 
 def _operation(
@@ -1672,18 +1673,24 @@ def test_paper_contract_f_f_ref_is_spt_atc_mean_and_library_invariant():
     edd = ClassicRule("EDD", ClassicRuleKind.EDD)
     expected = max((_run_fixed_rule(instance, spt) + _run_fixed_rule(instance, atc)) / 2, 1.0)
 
+    calibrated = compute_global_reward_scale((instance,), (25_100,))
     two_rule = PPOTrainer(
         _ParameterOnlyAgent(2),
         RuleLibrary((spt, atc)),
         [instance],
+        f_ref=calibrated.f_ref,
+        reward_reference_mode="global_calibration",
     )
     three_rule = PPOTrainer(
         _ParameterOnlyAgent(3),
         RuleLibrary((spt, atc, edd)),
         [instance],
+        f_ref=calibrated.f_ref,
+        reward_reference_mode="global_calibration",
     )
-    assert two_rule._compute_instance_f_ref(instance) == pytest.approx(expected)
-    assert three_rule._compute_instance_f_ref(instance) == pytest.approx(expected)
+    assert calibrated.f_ref == pytest.approx(expected)
+    assert two_rule.global_f_ref == pytest.approx(expected)
+    assert three_rule.global_f_ref == pytest.approx(expected)
 
 
 def test_paper_contract_f_incremental_reward_reconstructs_true_objective():

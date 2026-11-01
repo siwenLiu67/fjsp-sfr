@@ -1,0 +1,223 @@
+{
+  "schema": "paperA_global_reward_scale_v1",
+  "reference": "global_calibration_spt_atc_mean",
+  "formula": "max(1, mean_I[(F_SPT(I)+F_ATC_K2(I))/2])",
+  "f_ref": 1872.4027777777778,
+  "calibration_seeds": [
+    25100,
+    25101,
+    25102,
+    25103,
+    25104,
+    25105,
+    25106,
+    25107,
+    25108,
+    25109,
+    25110,
+    25111,
+    25112,
+    25113,
+    25114,
+    25115,
+    25116,
+    25117,
+    25118,
+    25119,
+    25120,
+    25121,
+    25122,
+    25123,
+    25124,
+    25125,
+    25126,
+    25127,
+    25128,
+    25129
+  ],
+  "instances": [
+    {
+      "seed": 25100,
+      "instance_sha256": "d1a7293881db0dc5eff35758d5d1e74e84b5e7f9c8348b1f1a6ec894aa395ffb",
+      "f_spt": 864.5,
+      "f_atc": 1870.3333333333333
+    },
+    {
+      "seed": 25101,
+      "instance_sha256": "b01ac08a0f64d5cb656c874f6e93b7d62a20145e8a9676c3569a137cacf72b21",
+      "f_spt": 1449.3333333333333,
+      "f_atc": 1945.3333333333333
+    },
+    {
+      "seed": 25102,
+      "instance_sha256": "ef75b0eb769c5f56d348356630cd2948f8aea58f968a76ed44dab075f4b9584b",
+      "f_spt": 842.8333333333334,
+      "f_atc": 1425.6666666666667
+    },
+    {
+      "seed": 25103,
+      "instance_sha256": "eb09c7209888ad78b5d9cf313c5495e885129a0ac527589b5226f69f3364360a",
+      "f_spt": 1291.0,
+      "f_atc": 1681.0
+    },
+    {
+      "seed": 25104,
+      "instance_sha256": "edadce5b8306848af5a60d54cfa303fea7eb87471f4b7eb638e4dac7f974674e",
+      "f_spt": 1439.3333333333333,
+      "f_atc": 1896.0
+    },
+    {
+      "seed": 25105,
+      "instance_sha256": "63e3beda2c893de5ef7f7bdcbc6db33bad086e71051281ec486447c292afc2a4",
+      "f_spt": 1592.6666666666667,
+      "f_atc": 1866.6666666666667
+    },
+    {
+      "seed": 25106,
+      "instance_sha256": "62c6a256edc7778ef0ba7db7b7262efc14a953557447637637c978f3948b8091",
+      "f_spt": 1905.1666666666667,
+      "f_atc": 2398.0
+    },
+    {
+      "seed": 25107,
+      "instance_sha256": "f082cf70fd548c48e1d31250c216b62d6e797bd9145f8f85eb52c7c3f282bc3d",
+      "f_spt": 1373.0,
+      "f_atc": 2427.0
+    },
+    {
+      "seed": 25108,
+      "instance_sha256": "fb99865dc47ca6bcec760a5cfcb6a8ba026cb4cd6d60d608d796e4cb1417a55d",
+      "f_spt": 1950.6666666666667,
+      "f_atc": 2036.6666666666667
+    },
+    {
+      "seed": 25109,
+      "instance_sha256": "80bb9ecb2141b2fe3ca832e645f535c9358e6501207723e903a7ed61b5cf8b19",
+      "f_spt": 1859.5,
+      "f_atc": 2484.3333333333335
+    },
+    {
+      "seed": 25110,
+      "instance_sha256": "5cb2e1edcff710041cc08a6135c7c58dab31312dbd26214aba7938069cd10464",
+      "f_spt": 1475.5,
+      "f_atc": 2572.5
+    },
+    {
+      "seed": 25111,
+      "instance_sha256": "5332bc1db184d48062a550ed667b0fa6c6665d2388bf0e9805ae4dcc43fca1ee",
+      "f_spt": 1215.3333333333333,
+      "f_atc": 1756.3333333333333
+    },
+    {
+      "seed": 25112,
+      "instance_sha256": "c595476ba676d32c236edfe5a0efc3adfb1f1f29723ddcb84acbad4e77f5d6c6",
+      "f_spt": 1258.3333333333333,
+      "f_atc": 2030.3333333333333
+    },
+    {
+      "seed": 25113,
+      "instance_sha256": "49505212e9656433ffdf131478dffb834b1eed737fd9ab5dd25f2bfc5044f8ec",
+      "f_spt": 1793.5,
+      "f_atc": 2580.6666666666665
+    },
+    {
+      "seed": 25114,
+      "instance_sha256": "0eab3e565b7d81dfcc954ac8217c9f8ef0520e6d4f5c24d638f50c5426c3628c",
+      "f_spt": 1834.8333333333333,
+      "f_atc": 2757.8333333333335
+    },
+    {
+      "seed": 25115,
+      "instance_sha256": "eac552f88ce530bbeee6263935d93821f10edd1dac99a9a09173299907b57768",
+      "f_spt": 1188.5,
+      "f_atc": 2089.5
+    },
+    {
+      "seed": 25116,
+      "instance_sha256": "7eb205a03f950e15232c66fdade2e2bedf2e0af72ad48411ab61b4d10b701a0e",
+      "f_spt": 1503.3333333333333,
+      "f_atc": 3660.3333333333335
+    },
+    {
+      "seed": 25117,
+      "instance_sha256": "3751695d27e659af6102152d818136f8de908e4f71ad6e1672b199448b8b7866",
+      "f_spt": 1432.6666666666667,
+      "f_atc": 2711.5
+    },
+    {
+      "seed": 25118,
+      "instance_sha256": "ce40315577168535c8360403e4b2615f7d9d79a043c6cc0e48e10b0d53c39e3e",
+      "f_spt": 1239.3333333333333,
+      "f_atc": 1643.3333333333333
+    },
+    {
+      "seed": 25119,
+      "instance_sha256": "fc0e0e345959ff04fec1101896ba7ae131c35f269ad552b8175b9e9f5292294b",
+      "f_spt": 984.5,
+      "f_atc": 2092.5
+    },
+    {
+      "seed": 25120,
+      "instance_sha256": "9f7323d131ec251ddabae11c722d5cd75407cee3c0ed1fab55e502aff331d62d",
+      "f_spt": 1634.5,
+      "f_atc": 2523.6666666666665
+    },
+    {
+      "seed": 25121,
+      "instance_sha256": "56ab66128ff6087e5e0847e67f386a7a8aa3a3cf3d91b23a623209bd3980bc73",
+      "f_spt": 1616.6666666666667,
+      "f_atc": 3372.6666666666665
+    },
+    {
+      "seed": 25122,
+      "instance_sha256": "628492af430cf021aecff8de2c6d767b8798b1199a90e33e197d9210ce462d3d",
+      "f_spt": 741.0,
+      "f_atc": 1383.0
+    },
+    {
+      "seed": 25123,
+      "instance_sha256": "05dee37d4aecde75585045e48d23edd06336ac230b6a8257fda017be84c0b374",
+      "f_spt": 1995.3333333333333,
+      "f_atc": 3987.1666666666665
+    },
+    {
+      "seed": 25124,
+      "instance_sha256": "2514399441fdf241b132953978569643246138364a186e29565ac9038e6aa30c",
+      "f_spt": 1447.1666666666667,
+      "f_atc": 2113.1666666666665
+    },
+    {
+      "seed": 25125,
+      "instance_sha256": "260e101dad33c01da972a2561cca9ecbcc914337b7e48f79d19d299b89392c43",
+      "f_spt": 1258.1666666666667,
+      "f_atc": 1620.1666666666667
+    },
+    {
+      "seed": 25126,
+      "instance_sha256": "6d58ff8d8e087e7adcc5d35ce3a93516804c728879fbb31d93505f4bd025d70c",
+      "f_spt": 1240.3333333333333,
+      "f_atc": 3532.0
+    },
+    {
+      "seed": 25127,
+      "instance_sha256": "36690ec20d38a1b58bd4b9775f46d2c06cb8de4abbaee8613af4f2dd013fce17",
+      "f_spt": 1215.5,
+      "f_atc": 2299.5
+    },
+    {
+      "seed": 25128,
+      "instance_sha256": "81c07a5e8826c0c8bf19b661f943938ca9689e6cf368b5bf575003b4a30a23b0",
+      "f_spt": 1125.5,
+      "f_atc": 3243.3333333333335
+    },
+    {
+      "seed": 25129,
+      "instance_sha256": "960e46928ad3885c248b43c02552c58c49a4fb7439e4d2718020a20d4f4c9d3a",
+      "f_spt": 1129.3333333333333,
+      "f_atc": 2446.3333333333335
+    }
+  ],
+  "calibration_partition": "calibration_center",
+  "scenario": "center",
+  "payload_sha256": "f41f822755a4a5ea28a2497dd91b48c81e774047a7e7e40a64a58e158c125b1b"
+}

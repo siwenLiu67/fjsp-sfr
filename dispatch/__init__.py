@@ -24,6 +24,14 @@ from .ca_metrics import (
     timely_visible_jobs,
 )
 from .ca_rules import rule_applicability_mask, select_job
+from .certificates import (
+    CertificateContradictionError,
+    CertificateError,
+    CertificateHistory,
+    OnlineCheckpointCertificate,
+    PrivilegedCertificateRecord,
+    ShortfallInterval,
+)
 from .types import DirectCandidateDecision, RuleAction, RuleDecision
 
 __all__ = [
@@ -31,9 +39,15 @@ __all__ = [
     "CandidateMetrics",
     "CheckpointCapacityAnalysis",
     "CheckpointMetrics",
+    "CertificateContradictionError",
+    "CertificateError",
+    "CertificateHistory",
     "DirectCandidateDecision",
     "RuleAction",
     "RuleDecision",
+    "OnlineCheckpointCertificate",
+    "PrivilegedCertificateRecord",
+    "ShortfallInterval",
     "build_ca_decision_metrics",
     "analyze_checkpoint_capacity",
     "candidate_jobs",

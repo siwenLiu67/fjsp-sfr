@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from copy import deepcopy
 from dataclasses import dataclass, field
 
 from .forecast import ForecastSnapshot
@@ -54,9 +55,13 @@ class OnlineProblemView:
         # Public generator/scaling metadata is legal online information.  It
         # lets Table 5-2 use fixed distribution scales without consulting the
         # realized (possibly unreleased) job sample.
-        for key in ("generator", "feature_normalization_scales"):
+        for key in (
+            "generator",
+            "feature_normalization_scales",
+            "certificate_public_bounds",
+        ):
             if key in instance.metadata:
-                metadata[key] = instance.metadata[key]
+                metadata[key] = deepcopy(instance.metadata[key])
         return cls(
             jobs=visible,
             entities=instance.entities,

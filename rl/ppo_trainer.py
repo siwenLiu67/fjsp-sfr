@@ -160,6 +160,7 @@ class PPOTrainer:
         feature_set: str = "theory11",
         mask_checkpoint: bool = False,
         mask_forecast: bool = False,
+        reward_reference_mode: str = "legacy_per_instance",
     ) -> None:
         feature_names_for(feature_set)
         resolved_instances = list(instances or [])
@@ -181,6 +182,18 @@ class PPOTrainer:
             entropy_coef_start < 0.0 or entropy_coef_end < 0.0
         ):
             raise ValueError("scheduled entropy coefficients must be non-negative")
+        if reward_reference_mode not in {
+            "legacy_per_instance",
+            "global_calibration",
+        }:
+            raise ValueError("unknown reward_reference_mode")
+        if reward_reference_mode == "global_calibration":
+            if not isinstance(f_ref, (int, float)):
+                raise ValueError("global_calibration requires one scalar f_ref")
+            if not torch.isfinite(torch.tensor(float(f_ref))) or float(f_ref) < 1.0:
+                raise ValueError(
+                    "global calibrated f_ref must be finite and at least one"
+                )
 
         self.agent = agent
         self.library = library
@@ -202,9 +215,14 @@ class PPOTrainer:
         self.epochs_per_update = epochs_per_update
         self.max_grad_norm = max_grad_norm
         self.f_ref = f_ref
+        self.reward_reference_mode = reward_reference_mode
+        self.global_f_ref = (
+            float(f_ref) if reward_reference_mode == "global_calibration" else None
+        )
         self.f_refs = (
             _resolve_f_refs(f_ref, len(resolved_instances))
             if instance_factory is None
+            and reward_reference_mode == "legacy_per_instance"
             else ()
         )
         self.reward_scale = float(reward_scale)
@@ -310,11 +328,20 @@ class PPOTrainer:
                     raise TypeError("instance_factory must return FJSPInstance")
                 self.global_episode_count += 1
                 instance = deepcopy(generated)
-                episode_f_ref = self._compute_instance_f_ref(generated)
+                episode_f_ref = (
+                    self.global_f_ref
+                    if self.reward_reference_mode == "global_calibration"
+                    else self._compute_instance_f_ref(generated)
+                )
             else:
                 instance_index = random.randrange(len(self.instances))
                 instance = deepcopy(self.instances[instance_index])
-                episode_f_ref = self.f_refs[instance_index]
+                episode_f_ref = (
+                    self.global_f_ref
+                    if self.reward_reference_mode == "global_calibration"
+                    else self.f_refs[instance_index]
+                )
+            assert episode_f_ref is not None
             env = CAPPORuleSelectionEnv(instance)
             env.reset()
             episode_reward = 0.0
