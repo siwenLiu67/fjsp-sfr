@@ -24,6 +24,8 @@ from fjsp_sfr.dispatch.theory_features import (
 from fjsp_sfr.env.ca_observation import resolve_observation_scales
 from fjsp_sfr.env.ca_rule_selection import CAPPORuleSelectionEnv
 from fjsp_sfr.rl.graph import (
+    GRAPH_CONFIGS,
+    LEGACY_GRAPH,
     HeteroGraphData,
     apply_information_masks,
     build_hetero_graph,
@@ -98,6 +100,25 @@ def _move_graph(data: HeteroGraphData, device: torch.device) -> HeteroGraphData:
         num_jobs=data.num_jobs,
         num_machines=data.num_machines,
         num_checkpoints=data.num_checkpoints,
+        job_ids=data.job_ids,
+        checkpoint_keys=data.checkpoint_keys,
+        graph_config=data.graph_config,
+        relation_edge_index={
+            name: value.to(device) for name, value in data.relation_edge_index.items()
+        },
+        relation_edge_attr={
+            name: value.to(device) for name, value in data.relation_edge_attr.items()
+        },
+        job_batch=None if data.job_batch is None else data.job_batch.to(device),
+        machine_batch=(
+            None if data.machine_batch is None else data.machine_batch.to(device)
+        ),
+        checkpoint_batch=(
+            None
+            if data.checkpoint_batch is None
+            else data.checkpoint_batch.to(device)
+        ),
+        num_graphs=data.num_graphs,
     )
 
 
@@ -158,11 +179,14 @@ class PPOTrainer:
         entropy_coef_start: float | None = None,
         entropy_coef_end: float | None = None,
         feature_set: str = "theory11",
+        graph_config: str = LEGACY_GRAPH,
         mask_checkpoint: bool = False,
         mask_forecast: bool = False,
         reward_reference_mode: str = "legacy_per_instance",
     ) -> None:
         feature_names_for(feature_set)
+        if graph_config not in GRAPH_CONFIGS:
+            raise ValueError(f"unknown graph_config: {graph_config}")
         resolved_instances = list(instances or [])
         if instance_factory is None and not resolved_instances:
             raise ValueError("instances must not be empty without instance_factory")
@@ -227,6 +251,7 @@ class PPOTrainer:
         )
         self.reward_scale = float(reward_scale)
         self.feature_set = feature_set
+        self.graph_config = graph_config
         self.mask_checkpoint = bool(mask_checkpoint)
         self.mask_forecast = bool(mask_forecast)
         self.optimizer = torch.optim.Adam(agent.parameters(), lr=lr)
@@ -293,6 +318,7 @@ class PPOTrainer:
             time_scale=time_scale,
             processing_scale=processing_scale,
             feature_set=self.feature_set,
+            graph_config=self.graph_config,
         )
         graph = apply_information_masks(
             graph,

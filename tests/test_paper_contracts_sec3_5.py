@@ -63,8 +63,15 @@ from fjsp_sfr.env.ca_rule_selection import CAPPORuleSelectionEnv
 from fjsp_sfr.experiments.run_algo import resolve_runtime_library
 from fjsp_sfr.generation import scenario_generator
 from fjsp_sfr.generation.scenario_generator import make_scenario_instance
-from fjsp_sfr.rl.graph import PAPER_GRAPH, apply_information_masks, build_hetero_graph
-from fjsp_sfr.rl.hgt import HGTEncoder
+from fjsp_sfr.rl.crg import CRGEncoder
+from fjsp_sfr.rl.graph import (
+    JOB_TO_CHECKPOINT_NONTIMELY,
+    JOB_TO_CHECKPOINT_TIMELY,
+    PAPER_GRAPH,
+    apply_information_masks,
+    build_hetero_graph,
+)
+from fjsp_sfr.rl.ppo_agent import HGTPPOAgent
 from fjsp_sfr.rl.ppo_trainer import PPOTrainer
 from fjsp_sfr.rl.reward_scale import compute_global_reward_scale
 
@@ -1296,6 +1303,25 @@ def _graph_fixture(current_time: int = 0):
 
 
 def _contract_paper_graph(instance, state, metrics):
+    metrics = replace(
+        metrics,
+        checkpoints={
+            key: replace(
+                checkpoint,
+                online_shortfall_lower=(
+                    0.0
+                    if checkpoint.online_shortfall_lower is None
+                    else checkpoint.online_shortfall_lower
+                ),
+                online_shortfall_upper=(
+                    checkpoint.residual_gap
+                    if checkpoint.online_shortfall_upper is None
+                    else checkpoint.online_shortfall_upper
+                ),
+            )
+            for key, checkpoint in metrics.checkpoints.items()
+        },
+    )
     features = build_extended_theory_features(
         instance, state, metrics, feature_set="paper14"
     )
@@ -1309,12 +1335,12 @@ def _contract_paper_graph(instance, state, metrics):
     )
 
 
-def test_paper_contract_e_node_dimensions_are_14_2_10():
+def test_paper_contract_e_node_dimensions_are_14_2_12():
     instance, state, metrics = _graph_fixture()
     graph = _contract_paper_graph(instance, state, metrics)
     assert graph.job_x.shape == (1, 14)
     assert graph.machine_x.shape == (3, 2)
-    assert graph.checkpoint_x.shape == (2, 10)
+    assert graph.checkpoint_x.shape == (2, 12)
 
 
 def test_paper_contract_e_checkpoint_at_current_time_is_already_settled():
@@ -1339,7 +1365,7 @@ def test_paper_contract_e_no_checkpoint_and_no_neighbor_cases_are_finite():
     instance, state, metrics = _graph_fixture(current_time=21)
     graph = _contract_paper_graph(instance, state, metrics)
 
-    assert graph.checkpoint_x.shape == (0, 10)
+    assert graph.checkpoint_x.shape == (0, 12)
     assert graph.job_checkpoint_edge_index.shape == (2, 0)
     assert torch.isfinite(graph.machine_x).all()
     # Machine 2 deliberately has no job-machine neighbors.
@@ -1401,7 +1427,18 @@ def _paper_graph_integration_fixture():
             (2, 20): ScheduledOperation(2, 20, 1, 0, 4),
         },
     )
-    metrics = build_ca_decision_metrics(instance, state, machine_id=0)
+    raw_metrics = build_ca_decision_metrics(instance, state, machine_id=0)
+    metrics = replace(
+        raw_metrics,
+        checkpoints={
+            key: replace(
+                checkpoint,
+                online_shortfall_lower=0.0,
+                online_shortfall_upper=checkpoint.residual_gap,
+            )
+            for key, checkpoint in raw_metrics.checkpoints.items()
+        },
+    )
     return instance, state, metrics
 
 
@@ -1431,7 +1468,7 @@ def test_paper_contract_e_c_d_e_job_features_are_identical_end_to_end():
     assert graph.job_ids == (0, 1)
     assert torch.equal(graph.job_x, expected_tensor)
     assert graph.checkpoint_keys == ((0, 0), (1, 0), (0, 1), (1, 1))
-    assert graph.checkpoint_x.shape == (4, 10)
+    assert graph.checkpoint_x.shape == (4, 12)
     assert graph.job_checkpoint_edge_index.shape[1] == 4
     assert torch.all((0.0 <= graph.job_machine_edge_attr) & (graph.job_machine_edge_attr <= 1.0))
     assert torch.all((0.0 <= graph.job_checkpoint_edge_attr[:, 0]) & (graph.job_checkpoint_edge_attr[:, 0] <= 1.0))
@@ -1532,6 +1569,12 @@ def test_paper_contract_e_hidden_future_job_changes_do_not_change_graph():
         "global_x",
     ):
         assert torch.equal(getattr(left, name), getattr(right, name)), name
+    torch.manual_seed(91)
+    agent = HGTPPOAgent(action_size=3, encoder_type="crg_gatv2").eval()
+    left_output = agent(left)
+    right_output = agent(right)
+    assert torch.equal(left_output[0], right_output[0])
+    assert torch.equal(left_output[1], right_output[1])
 
 
 def test_paper_contract_e_checkpoint_columns_match_table_5_1():
@@ -1548,6 +1591,8 @@ def test_paper_contract_e_checkpoint_columns_match_table_5_1():
         additional_gap=4.0,
         capacity_applicable=True,
         capacity_shortfall=1.0,
+        online_shortfall_lower=1.0,
+        online_shortfall_upper=4.0,
     )
     second = replace(metrics.checkpoints[(0, 1)], checkpoint_weight=4.0)
     metrics = replace(
@@ -1567,24 +1612,18 @@ def test_paper_contract_e_checkpoint_columns_match_table_5_1():
             1.0,
             0.25,
             1.0,
+            0.1,
+            0.4,
         )
     )
 
 
-def test_paper_contract_e_existing_hgt_accepts_explicit_paper_dimensions():
+def test_paper_contract_e_crg_accepts_only_explicit_paper_dimensions():
     instance, state, metrics = _paper_graph_integration_fixture()
     graph = _contract_paper_graph(instance, state, metrics)
-    encoder = HGTEncoder(
-        job_input_dim=14,
-        machine_input_dim=2,
-        checkpoint_input_dim=10,
-        global_input_dim=7,
-        hidden_dim=8,
-        num_layers=1,
-        num_heads=2,
-    )
+    encoder = CRGEncoder()
     encoded = encoder(graph)
-    assert encoded.shape == (8,)
+    assert encoded.shape == (64,)
     assert torch.isfinite(encoded).all()
 
 
@@ -1637,6 +1676,8 @@ def test_paper_contract_e_checkpoint_edge_margin_matches_timely_eligibility():
     assert graph.job_checkpoint_edge_attr[:, 1].tolist() == pytest.approx(
         (-1 / 3, 2 / 3)
     )
+    assert graph.relation_edge_index[JOB_TO_CHECKPOINT_NONTIMELY].shape[1] == 1
+    assert graph.relation_edge_index[JOB_TO_CHECKPOINT_TIMELY].shape[1] == 1
 
 
 # ---------------------------------------------------------------------------

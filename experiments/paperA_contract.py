@@ -1,8 +1,7 @@
 """Frozen experiment contracts for the Paper A implementation paths.
 
-This module is deliberately declarative.  Phase 0 records the corrected
-2026-10-30 manuscript contract without implementing the certificate, CRG, or
-CC-DVL work assigned to later phases.
+This module records the corrected 2026-10-30 manuscript contract and keeps
+the remaining post-P2 runtime gates explicit.
 """
 
 from __future__ import annotations
@@ -59,8 +58,6 @@ PAPER_20261030 = FormalExperimentContract(
     evaluation_checkpoint="final_training",
     runtime_ready=False,
     blockers=(
-        "paper_graph checkpoint nodes have 10 rather than 12 features",
-        "CRG relation-wise GATv2 is not implemented",
         "action-equivalence merging is not integrated into the official PPO path",
         "C1-C4 and D1-D2 critic variants are not implemented",
     ),

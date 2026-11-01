@@ -50,7 +50,7 @@ def test_contract_no_longer_declares_phase_one_blockers():
 
 def test_contract_declares_crg_gatv2():
     assert PAPER_20261030.encoder == "crg_gatv2"
-    assert any("CRG" in item for item in PAPER_20261030.blockers)
+    assert not any("CRG" in item for item in PAPER_20261030.blockers)
 
 
 def test_contract_declares_critic_variant_blocker():
@@ -111,6 +111,16 @@ def test_authoritative_paper_graph_has_14_2_12_inputs():
     assert graph.job_x.shape[1] == 14
     assert graph.machine_x.shape[1] == 2
     assert graph.checkpoint_x.shape[1] == 12
+    for row, key in enumerate(graph.checkpoint_keys):
+        checkpoint = env.current_metrics.checkpoints[key]
+        assert checkpoint.online_shortfall_lower is not None
+        assert checkpoint.online_shortfall_upper is not None
+        assert graph.checkpoint_x[row, 10].item() == pytest.approx(
+            checkpoint.online_shortfall_lower / checkpoint.required_quantity
+        )
+        assert graph.checkpoint_x[row, 11].item() == pytest.approx(
+            checkpoint.online_shortfall_upper / checkpoint.required_quantity
+        )
 
 
 def test_authoritative_streaming_ppo_does_not_recompute_f_ref_per_instance(

@@ -109,6 +109,11 @@ def make_agent(
     if selector == "hgt_ppo":
         return HGTPPOAgent(
             **common,
+            encoder_type=(
+                "legacy_hgt"
+                if contract.encoder == "legacy_hgt_relu"
+                else contract.encoder
+            ),
             num_layers=2,
             num_heads=4,
             job_input_dim=contract.node_dimensions[0],
@@ -269,6 +274,7 @@ def train_ppo(
         reward_scale=10.0,
         entropy_coef=0.02,
         feature_set=contract.feature_set,
+        graph_config=contract.graph_config,
         mask_checkpoint=args.mask_checkpoint,
         mask_forecast=args.mask_forecast,
         f_ref=global_f_ref if global_f_ref is not None else 1.0,

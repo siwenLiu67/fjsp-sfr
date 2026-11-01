@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import math
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 
 import torch
 
@@ -24,6 +24,24 @@ from fjsp_sfr.dispatch.theory_features import (
 LEGACY_GRAPH = "legacy"
 PAPER_GRAPH = "paper_graph"
 GRAPH_CONFIGS = (LEGACY_GRAPH, PAPER_GRAPH)
+
+JOB = "job"
+MACHINE = "machine"
+CHECKPOINT = "checkpoint"
+JOB_TO_MACHINE = "job_to_machine"
+MACHINE_TO_JOB = "machine_to_job"
+JOB_TO_CHECKPOINT_TIMELY = "job_to_checkpoint_timely"
+CHECKPOINT_TO_JOB_TIMELY = "checkpoint_to_job_timely"
+JOB_TO_CHECKPOINT_NONTIMELY = "job_to_checkpoint_nontimely"
+CHECKPOINT_TO_JOB_NONTIMELY = "checkpoint_to_job_nontimely"
+PAPER_RELATION_SPECS: dict[str, tuple[str, str, int]] = {
+    JOB_TO_MACHINE: (JOB, MACHINE, 1),
+    MACHINE_TO_JOB: (MACHINE, JOB, 1),
+    JOB_TO_CHECKPOINT_TIMELY: (JOB, CHECKPOINT, 2),
+    CHECKPOINT_TO_JOB_TIMELY: (CHECKPOINT, JOB, 2),
+    JOB_TO_CHECKPOINT_NONTIMELY: (JOB, CHECKPOINT, 2),
+    CHECKPOINT_TO_JOB_NONTIMELY: (CHECKPOINT, JOB, 2),
+}
 
 
 @dataclass
@@ -48,6 +66,12 @@ class HeteroGraphData:
     job_ids: tuple[int, ...] = ()
     checkpoint_keys: tuple[tuple[int, int], ...] = ()
     graph_config: str = LEGACY_GRAPH
+    relation_edge_index: dict[str, torch.Tensor] = field(default_factory=dict)
+    relation_edge_attr: dict[str, torch.Tensor] = field(default_factory=dict)
+    job_batch: torch.Tensor | None = None
+    machine_batch: torch.Tensor | None = None
+    checkpoint_batch: torch.Tensor | None = None
+    num_graphs: int = 1
 
 
 def apply_information_masks(
@@ -71,6 +95,12 @@ def apply_information_masks(
     global_x = data.global_x.clone()
     checkpoint_edge_index = data.job_checkpoint_edge_index.clone()
     checkpoint_edge_attr = data.job_checkpoint_edge_attr.clone()
+    relation_edge_index = {
+        name: value.clone() for name, value in data.relation_edge_index.items()
+    }
+    relation_edge_attr = {
+        name: value.clone() for name, value in data.relation_edge_attr.items()
+    }
     num_checkpoints = data.num_checkpoints
 
     if mask_forecast:
@@ -84,7 +114,7 @@ def apply_information_masks(
             else:
                 checkpoint_x[:, 3] = 0.0
                 checkpoint_x[:, 5] = 0.0
-        global_x[5] = 0.0
+        global_x[..., 5] = 0.0
 
     if mask_checkpoint:
         checkpoint_x = data.checkpoint_x.new_empty((0, data.checkpoint_x.shape[1]))
@@ -93,6 +123,10 @@ def apply_information_masks(
             (0, data.job_checkpoint_edge_attr.shape[1])
         )
         num_checkpoints = 0
+        for name, (source_type, target_type, width) in PAPER_RELATION_SPECS.items():
+            if CHECKPOINT in (source_type, target_type):
+                relation_edge_index[name] = checkpoint_edge_index.new_empty((2, 0))
+                relation_edge_attr[name] = checkpoint_edge_attr.new_empty((0, width))
 
     return HeteroGraphData(
         job_x=job_x,
@@ -109,6 +143,18 @@ def apply_information_masks(
         job_ids=data.job_ids,
         checkpoint_keys=(() if mask_checkpoint else data.checkpoint_keys),
         graph_config=data.graph_config,
+        relation_edge_index=relation_edge_index,
+        relation_edge_attr=relation_edge_attr,
+        job_batch=data.job_batch,
+        machine_batch=data.machine_batch,
+        checkpoint_batch=(
+            None
+            if data.checkpoint_batch is None
+            else data.checkpoint_batch.new_empty((0,))
+            if mask_checkpoint
+            else data.checkpoint_batch
+        ),
+        num_graphs=data.num_graphs,
     )
 
 
@@ -405,7 +451,15 @@ def _build_paper_graph(
     )
     checkpoint_rows: list[tuple[float, ...]] = []
     for _key, checkpoint in active_checkpoints:
+        if (
+            checkpoint.online_shortfall_lower is None
+            or checkpoint.online_shortfall_upper is None
+        ):
+            raise ValueError(
+                "paper_graph requires P1 public online certificate endpoints"
+            )
         gap = float(checkpoint.residual_gap)
+        required = float(checkpoint.required_quantity)
         remaining_time = float(checkpoint.checkpoint_time - state.current_time)
         forecast_slack_defined = checkpoint.release_slack is not None
         checkpoint_rows.append(
@@ -448,14 +502,24 @@ def _build_paper_graph(
                     else 0.0
                 ),
                 float(checkpoint.capacity_applicable),
+                _clamp_unit(
+                    _safe_ratio(float(checkpoint.online_shortfall_lower), required)
+                ),
+                _clamp_unit(
+                    _safe_ratio(float(checkpoint.online_shortfall_upper), required)
+                ),
             )
         )
-    checkpoint_x = _feature_matrix(checkpoint_rows, 10)
+    checkpoint_x = _feature_matrix(checkpoint_rows, 12)
 
     job_machine_edges: list[tuple[int, int]] = []
     job_machine_attributes: list[tuple[float]] = []
     job_checkpoint_edges: list[tuple[int, int]] = []
     job_checkpoint_attributes: list[tuple[float, float]] = []
+    timely_edges: list[tuple[int, int]] = []
+    timely_attributes: list[tuple[float, float]] = []
+    nontimely_edges: list[tuple[int, int]] = []
+    nontimely_attributes: list[tuple[float, float]] = []
     for job_index, candidate in enumerate(candidates):
         job = problem.get_job(candidate.job_id)
         operation = next(
@@ -485,22 +549,45 @@ def _build_paper_graph(
         for key, checkpoint in active_checkpoints:
             if checkpoint.entity_id != candidate.entity_id:
                 continue
-            job_checkpoint_edges.append((job_index, checkpoint_indices[key]))
+            edge = (job_index, checkpoint_indices[key])
+            job_checkpoint_edges.append(edge)
             gap = float(checkpoint.residual_gap)
             checkpoint_slack = float(checkpoint.checkpoint_time) - completion_lb
-            job_checkpoint_attributes.append(
-                (
-                    _clamp_unit(
-                        _safe_ratio(min(float(job.quantity), gap), gap)
-                    ),
-                    _sigma_signed(_safe_ratio(checkpoint_slack, bar_w)),
-                )
+            attribute = (
+                _clamp_unit(_safe_ratio(min(float(job.quantity), gap), gap)),
+                _sigma_signed(_safe_ratio(checkpoint_slack, bar_w)),
             )
+            job_checkpoint_attributes.append(attribute)
+            if completion_lb <= float(checkpoint.checkpoint_time):
+                timely_edges.append(edge)
+                timely_attributes.append(attribute)
+            else:
+                nontimely_edges.append(edge)
+                nontimely_attributes.append(attribute)
 
     job_machine_edge_index = _edge_index(job_machine_edges)
     job_machine_edge_attr = _feature_matrix(job_machine_attributes, 1)
     job_checkpoint_edge_index = _edge_index(job_checkpoint_edges)
     job_checkpoint_edge_attr = _feature_matrix(job_checkpoint_attributes, 2)
+    job_machine_reverse = [(target, source) for source, target in job_machine_edges]
+    timely_reverse = [(target, source) for source, target in timely_edges]
+    nontimely_reverse = [(target, source) for source, target in nontimely_edges]
+    relation_edge_index = {
+        JOB_TO_MACHINE: _edge_index(job_machine_edges),
+        MACHINE_TO_JOB: _edge_index(job_machine_reverse),
+        JOB_TO_CHECKPOINT_TIMELY: _edge_index(timely_edges),
+        CHECKPOINT_TO_JOB_TIMELY: _edge_index(timely_reverse),
+        JOB_TO_CHECKPOINT_NONTIMELY: _edge_index(nontimely_edges),
+        CHECKPOINT_TO_JOB_NONTIMELY: _edge_index(nontimely_reverse),
+    }
+    relation_edge_attr = {
+        JOB_TO_MACHINE: _feature_matrix(job_machine_attributes, 1),
+        MACHINE_TO_JOB: _feature_matrix(job_machine_attributes, 1),
+        JOB_TO_CHECKPOINT_TIMELY: _feature_matrix(timely_attributes, 2),
+        CHECKPOINT_TO_JOB_TIMELY: _feature_matrix(timely_attributes, 2),
+        JOB_TO_CHECKPOINT_NONTIMELY: _feature_matrix(nontimely_attributes, 2),
+        CHECKPOINT_TO_JOB_NONTIMELY: _feature_matrix(nontimely_attributes, 2),
+    }
 
     feature_names = feature_names_for("paper14")
     tardiness_index = feature_names.index("tardiness_exposure")
@@ -568,6 +655,88 @@ def _build_paper_graph(
         job_ids=tuple(candidate.job_id for candidate in candidates),
         checkpoint_keys=tuple(key for key, _checkpoint in active_checkpoints),
         graph_config=PAPER_GRAPH,
+        relation_edge_index=relation_edge_index,
+        relation_edge_attr=relation_edge_attr,
+    )
+
+
+def batch_hetero_graphs(graphs: tuple[HeteroGraphData, ...]) -> HeteroGraphData:
+    """Batch variable-sized formal graphs without guessing their configuration."""
+
+    if not graphs:
+        raise ValueError("at least one graph is required")
+    if any(graph.graph_config != PAPER_GRAPH for graph in graphs):
+        raise ValueError("batch_hetero_graphs accepts paper_graph inputs only")
+    if any(set(graph.relation_edge_index) != set(PAPER_RELATION_SPECS) for graph in graphs):
+        raise ValueError("every paper graph must contain exactly the six relations")
+
+    node_parts = {JOB: [], MACHINE: [], CHECKPOINT: []}
+    batches = {JOB: [], MACHINE: [], CHECKPOINT: []}
+    relation_indices = {name: [] for name in PAPER_RELATION_SPECS}
+    relation_attrs = {name: [] for name in PAPER_RELATION_SPECS}
+    offsets = {JOB: 0, MACHINE: 0, CHECKPOINT: 0}
+    job_ids: list[int] = []
+    checkpoint_keys: list[tuple[int, int]] = []
+    for graph_index, graph in enumerate(graphs):
+        local = {JOB: graph.job_x, MACHINE: graph.machine_x, CHECKPOINT: graph.checkpoint_x}
+        for node_type, values in local.items():
+            node_parts[node_type].append(values)
+            batches[node_type].append(
+                torch.full((values.shape[0],), graph_index, dtype=torch.long, device=values.device)
+            )
+        for name, (source_type, target_type, _width) in PAPER_RELATION_SPECS.items():
+            index = graph.relation_edge_index[name].clone()
+            if index.numel():
+                index[0] += offsets[source_type]
+                index[1] += offsets[target_type]
+            relation_indices[name].append(index)
+            relation_attrs[name].append(graph.relation_edge_attr[name])
+        offsets[JOB] += graph.job_x.shape[0]
+        offsets[MACHINE] += graph.machine_x.shape[0]
+        offsets[CHECKPOINT] += graph.checkpoint_x.shape[0]
+        job_ids.extend(graph.job_ids)
+        checkpoint_keys.extend(graph.checkpoint_keys)
+
+    def cat_features(parts: list[torch.Tensor], width: int) -> torch.Tensor:
+        return torch.cat(parts, dim=0) if parts else torch.empty((0, width))
+
+    def cat_indices(parts: list[torch.Tensor]) -> torch.Tensor:
+        return torch.cat(parts, dim=1) if parts else torch.empty((2, 0), dtype=torch.long)
+
+    rel_index = {name: cat_indices(parts) for name, parts in relation_indices.items()}
+    rel_attr = {
+        name: cat_features(parts, PAPER_RELATION_SPECS[name][2])
+        for name, parts in relation_attrs.items()
+    }
+    job_machine = rel_index[JOB_TO_MACHINE]
+    job_machine_attr = rel_attr[JOB_TO_MACHINE]
+    job_checkpoint = torch.cat(
+        (rel_index[JOB_TO_CHECKPOINT_TIMELY], rel_index[JOB_TO_CHECKPOINT_NONTIMELY]), dim=1
+    )
+    job_checkpoint_attr = torch.cat(
+        (rel_attr[JOB_TO_CHECKPOINT_TIMELY], rel_attr[JOB_TO_CHECKPOINT_NONTIMELY]), dim=0
+    )
+    return HeteroGraphData(
+        job_x=cat_features(node_parts[JOB], 14),
+        machine_x=cat_features(node_parts[MACHINE], 2),
+        checkpoint_x=cat_features(node_parts[CHECKPOINT], 12),
+        job_machine_edge_index=job_machine,
+        job_machine_edge_attr=job_machine_attr,
+        job_checkpoint_edge_index=job_checkpoint,
+        job_checkpoint_edge_attr=job_checkpoint_attr,
+        global_x=torch.stack([graph.global_x for graph in graphs]),
+        num_jobs=offsets[JOB],
+        num_machines=offsets[MACHINE],
+        num_checkpoints=offsets[CHECKPOINT],
+        job_ids=tuple(job_ids),
+        checkpoint_keys=tuple(checkpoint_keys),
+        graph_config=PAPER_GRAPH,
+        relation_edge_index=rel_index,
+        relation_edge_attr=rel_attr,
+        job_batch=torch.cat(batches[JOB]),
+        machine_batch=torch.cat(batches[MACHINE]),
+        checkpoint_batch=torch.cat(batches[CHECKPOINT]),
+        num_graphs=len(graphs),
     )
 
 
