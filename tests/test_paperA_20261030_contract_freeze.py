@@ -56,9 +56,10 @@ def test_contract_declares_crg_gatv2():
     assert not any("CRG" in item for item in PAPER_20261030.blockers)
 
 
-def test_contract_declares_only_remaining_distributional_critic_blocker():
+def test_contract_declares_only_remaining_p5_protocol_blocker():
     assert not any("C1-C4" in item for item in PAPER_20261030.blockers)
-    assert any("D1-D2" in item for item in PAPER_20261030.blockers)
+    assert not any("D1-D2" in item for item in PAPER_20261030.blockers)
+    assert any("P5" in item for item in PAPER_20261030.blockers)
 
 
 def test_formal_entry_requires_explicit_contract_selection(tmp_path):

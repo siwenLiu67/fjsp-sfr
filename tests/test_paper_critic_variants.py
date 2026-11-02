@@ -284,10 +284,17 @@ def test_legacy_selects_validation_best_but_paper_keeps_final(monkeypatch):
             self.agent = agent
             self.optimizer = torch.optim.SGD(agent.parameters(), lr=0.1)
             self.entropy_coef = 0.0
+            self.environment_interactions = 0
+            self.optimizer_update_count = 0
 
         def train(self, *_args, **_kwargs):
             with torch.no_grad():
                 self.agent.marker.add_(1.0)
+            self.optimizer_update_count += 1
+            return []
+
+        def quantile_width_diagnostics(self):
+            return {}
 
     monkeypatch.setattr(formal_experiment, "PPOTrainer", FakeTrainer)
     monkeypatch.setattr(

@@ -58,7 +58,7 @@ PAPER_20261030 = FormalExperimentContract(
     evaluation_checkpoint="final_training",
     runtime_ready=False,
     blockers=(
-        "D1-D2 distributional critic variants are not implemented",
+        "P5 formal experiment protocol has not completed end-to-end acceptance",
     ),
 )
 

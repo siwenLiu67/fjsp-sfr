@@ -43,6 +43,12 @@ from fjsp_sfr.rl.certificate_critic import (
     CriticStepContext,
     CriticTargets,
 )
+from fjsp_sfr.rl.cc_dvl import (
+    DISTRIBUTIONAL_CRITIC_VARIANTS,
+    QuantileCriticOutput,
+    summarize_width_dispersion,
+    width_dispersion_rows,
+)
 from fjsp_sfr.rl.rollout_buffer import RolloutBuffer, RolloutStep
 
 
@@ -57,6 +63,16 @@ class TrainStats:
     advantage_std: float
     clip_fraction: float
     total_reward: float
+    gradient_norm: float
+    critic_gradient_norm: float
+    critic_total_cost_mae: float
+    critic_tardiness_mae: float
+    critic_shortfall_mae: float
+    environment_interactions: int
+    optimizer_updates: int
+
+
+PAPER_CRITIC_VARIANTS = (*CRITIC_VARIANTS, *DISTRIBUTIONAL_CRITIC_VARIANTS)
 
 
 def standardize_advantages(
@@ -252,7 +268,7 @@ def build_critic_step_context(
 
     if critic_variant == "c1" or critic_variant == "legacy":
         return None
-    if critic_variant not in {"c2", "c3", "c4"}:
+    if critic_variant not in {"c2", "c3", "c4", "d1", "d2"}:
         raise ValueError(f"unknown critic variant: {critic_variant}")
     device = graph.checkpoint_x.device
     keys = graph.checkpoint_keys
@@ -437,14 +453,14 @@ class PPOTrainer:
             if getattr(agent, "encoder_type", None) != "crg_gatv2":
                 raise ValueError("paper_graph PPO requires the CRG actor encoder")
             if gamma != 1.0 or gae_lambda != 0.95:
-                raise ValueError("formal scalar PPO requires gamma=1 and GAE lambda=0.95")
+                raise ValueError("formal PPO requires gamma=1 and GAE lambda=0.95")
             if reward_reference_mode != "global_calibration":
                 raise ValueError("formal scalar PPO requires one global calibrated F_ref")
             if reward_scale != 10.0:
                 raise ValueError("formal scalar PPO requires reward_scale=10")
-            if getattr(agent, "critic_variant", "legacy") in CRITIC_VARIANTS:
+            if getattr(agent, "critic_variant", "legacy") in PAPER_CRITIC_VARIANTS:
                 if reward_reference_mode != "global_calibration":
-                    raise ValueError("C1-C4 require the global calibrated F_ref")
+                    raise ValueError("paper critics require the global calibrated F_ref")
 
         self.agent = agent
         self.library = library
@@ -483,6 +499,14 @@ class PPOTrainer:
         self.mask_forecast = bool(mask_forecast)
         self.action_equivalence_merge = bool(action_equivalence_merge)
         self.optimizer = torch.optim.Adam(agent.parameters(), lr=lr)
+        self.environment_interactions = 0
+        self.optimizer_update_count = 0
+        self._quantile_width_rows: list[tuple[float, float, float]] = []
+
+    def quantile_width_diagnostics(self) -> dict[str, dict[str, float | int]]:
+        """D2 uncertainty diagnostic; never feeds back into optimization."""
+
+        return summarize_width_dispersion(self._quantile_width_rows)
 
     @property
     def device(self) -> torch.device:
@@ -597,13 +621,14 @@ class PPOTrainer:
                 )
             assert episode_f_ref is not None
             critic_variant = getattr(self.agent, "critic_variant", "legacy")
-            if critic_variant in {"c2", "c3", "c4"} and (
+            if critic_variant in {"c2", "c3", "c4", "d1", "d2"} and (
                 float(instance.alpha) != 1.0 or float(instance.beta) != 1.0
             ):
                 raise ValueError("decomposed critics require alpha=beta=1")
             env = CAPPORuleSelectionEnv(
                 instance,
-                enable_privileged_certificates=critic_variant in {"c3", "c4"},
+                enable_privileged_certificates=critic_variant
+                in {"c3", "c4", "d1", "d2"},
             )
             env.reset()
             episode_reward = 0.0
@@ -616,7 +641,7 @@ class PPOTrainer:
                     env, graph, critic_variant
                 )
                 with torch.no_grad():
-                    if critic_variant in CRITIC_VARIANTS:
+                    if critic_variant in PAPER_CRITIC_VARIANTS:
                         rule_log_probs, critic_output, _encoding = (
                             self.agent.forward_with_critic(
                                 graph,
@@ -627,6 +652,19 @@ class PPOTrainer:
                             )
                         )
                         value_tensor = critic_output.total_value
+                        if critic_variant == "d2":
+                            if not isinstance(critic_output, QuantileCriticOutput):
+                                raise TypeError("D2 must return quantile output")
+                            assert critic_context is not None
+                            assert critic_context.privileged_lower is not None
+                            assert critic_context.privileged_upper is not None
+                            self._quantile_width_rows.extend(
+                                width_dispersion_rows(
+                                    critic_output.checkpoint_quantiles,
+                                    critic_context.privileged_lower,
+                                    critic_context.privileged_upper,
+                                )
+                            )
                     else:
                         rule_log_probs, value_tensor = self.agent(graph, mask)
                 if self.action_equivalence_merge:
@@ -703,10 +741,11 @@ class PPOTrainer:
                     )
                 )
                 episode_reward += reward
+                self.environment_interactions += 1
                 if result.terminated:
                     if result.objective is None:
                         raise RuntimeError("terminated episode lacks final objective")
-                    if critic_variant in CRITIC_VARIANTS:
+                    if critic_variant in PAPER_CRITIC_VARIANTS:
                         finalize_episode_critic_targets(
                             buffer.steps[episode_start:], result.objective
                         )
@@ -740,16 +779,24 @@ class PPOTrainer:
         total_entropy = 0.0
         total_kl = 0.0
         total_clip_fraction = 0.0
+        total_gradient_norm = 0.0
+        total_critic_gradient_norm = 0.0
+        total_critic_cost_mae = 0.0
+        total_critic_tt_mae = 0.0
+        total_critic_shortfall_mae = 0.0
         num_updates = 0
 
         for _epoch in range(self.epochs_per_update):
             new_log_prob_rows: list[torch.Tensor] = []
             value_rows: list[torch.Tensor] = []
             critic_loss_rows: list[torch.Tensor] = []
+            critic_cost_error_rows: list[torch.Tensor] = []
+            critic_tt_error_rows: list[torch.Tensor] = []
+            critic_shortfall_error_rows: list[torch.Tensor] = []
             entropy_rows: list[torch.Tensor] = []
             for index, step in enumerate(buffer.steps):
                 critic_variant = getattr(self.agent, "critic_variant", "legacy")
-                if critic_variant in CRITIC_VARIANTS:
+                if critic_variant in PAPER_CRITIC_VARIANTS:
                     log_probs, critic_output, _encoding = self.agent.forward_with_critic(
                         step.graph,
                         step.action_mask,
@@ -759,7 +806,7 @@ class PPOTrainer:
                     )
                     value = critic_output.total_value
                     if step.critic_targets is None:
-                        raise ValueError("C1-C4 rollout step lacks MC targets")
+                        raise ValueError("paper critic rollout step lacks MC targets")
                     assert self.agent.certificate_critic is not None
                     critic_loss_rows.append(
                         self.agent.certificate_critic.loss(
@@ -769,6 +816,32 @@ class PPOTrainer:
                             f_ref=step.f_ref,
                         )
                     )
+                    target_total = critic_output.total_cost.new_tensor(
+                        step.critic_targets.remaining_total_cost
+                    )
+                    critic_cost_error_rows.append(
+                        (critic_output.total_cost - target_total).abs()
+                    )
+                    if critic_output.remaining_tardiness is not None:
+                        target_tt = critic_output.total_cost.new_tensor(
+                            step.critic_targets.remaining_tardiness
+                        )
+                        critic_tt_error_rows.append(
+                            (critic_output.remaining_tardiness - target_tt).abs()
+                        )
+                    expected_shortfalls = step.critic_targets.checkpoint_shortfalls.to(
+                        critic_output.total_cost.device
+                    )
+                    if isinstance(critic_output, QuantileCriticOutput):
+                        predicted_shortfalls = (
+                            critic_output.mean_checkpoint_shortfalls
+                        )
+                    else:
+                        predicted_shortfalls = critic_output.checkpoint_shortfalls
+                    if expected_shortfalls.numel():
+                        critic_shortfall_error_rows.append(
+                            (predicted_shortfalls - expected_shortfalls).abs().mean()
+                        )
                 else:
                     log_probs, value = self.agent(step.graph, step.action_mask)
                 if step.action_groups:
@@ -813,8 +886,23 @@ class PPOTrainer:
 
             self.optimizer.zero_grad()
             loss.backward()
-            nn.utils.clip_grad_norm_(self.agent.parameters(), self.max_grad_norm)
+            critic_parameters = (
+                tuple(self.agent.certificate_critic.parameters())
+                if getattr(self.agent, "certificate_critic", None) is not None
+                else ()
+            )
+            critic_gradient_norm = math.sqrt(
+                sum(
+                    float(parameter.grad.detach().pow(2).sum().item())
+                    for parameter in critic_parameters
+                    if parameter.grad is not None
+                )
+            )
+            gradient_norm = nn.utils.clip_grad_norm_(
+                self.agent.parameters(), self.max_grad_norm
+            )
             self.optimizer.step()
+            self.optimizer_update_count += 1
 
             clip_fraction = (
                 (ratios - 1.0).abs() > self.clip_eps
@@ -825,6 +913,20 @@ class PPOTrainer:
             total_entropy += float(mean_entropy.detach().item())
             total_kl += float(approx_kl.detach().item())
             total_clip_fraction += float(clip_fraction.detach().item())
+            total_gradient_norm += float(gradient_norm.detach().item())
+            total_critic_gradient_norm += float(critic_gradient_norm)
+            if critic_cost_error_rows:
+                total_critic_cost_mae += float(
+                    torch.stack(critic_cost_error_rows).mean().detach().item()
+                )
+            if critic_tt_error_rows:
+                total_critic_tt_mae += float(
+                    torch.stack(critic_tt_error_rows).mean().detach().item()
+                )
+            if critic_shortfall_error_rows:
+                total_critic_shortfall_mae += float(
+                    torch.stack(critic_shortfall_error_rows).mean().detach().item()
+                )
             num_updates += 1
 
         denominator = max(num_updates, 1)
@@ -837,6 +939,13 @@ class PPOTrainer:
             advantage_std=advantage_std,
             clip_fraction=total_clip_fraction / denominator,
             total_reward=float(mean_step_reward),
+            gradient_norm=total_gradient_norm / denominator,
+            critic_gradient_norm=total_critic_gradient_norm / denominator,
+            critic_total_cost_mae=total_critic_cost_mae / denominator,
+            critic_tardiness_mae=total_critic_tt_mae / denominator,
+            critic_shortfall_mae=total_critic_shortfall_mae / denominator,
+            environment_interactions=len(buffer.steps),
+            optimizer_updates=num_updates,
         )
 
     @torch.no_grad()

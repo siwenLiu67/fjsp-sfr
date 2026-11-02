@@ -122,6 +122,8 @@ def make_agent(
     *,
     contract: FormalExperimentContract,
     critic_variant: str = "legacy",
+    num_quantiles: int | None = None,
+    quantile_loss_coef: float | None = None,
 ):
     common = dict(action_size=action_size, hidden_dim=64)
     if selector == "hgt_ppo":
@@ -138,6 +140,8 @@ def make_agent(
             machine_input_dim=contract.node_dimensions[1],
             checkpoint_input_dim=contract.node_dimensions[2],
             critic_variant=critic_variant,
+            num_quantiles=num_quantiles,
+            quantile_loss_coef=quantile_loss_coef,
         )
     if selector == "mlp_ppo":
         return MLPPPOAgent(**common, job_input_dim=contract.node_dimensions[0])
@@ -320,6 +324,8 @@ def train_ppo(
         library.action_size(),
         contract=contract,
         critic_variant=critic_variant,
+        num_quantiles=getattr(args, "num_quantiles", None),
+        quantile_loss_coef=getattr(args, "quantile_loss_coef", None),
     )
     trainer = PPOTrainer(
         agent=agent,
@@ -350,6 +356,7 @@ def train_ppo(
     )
     updates = math.ceil(args.episodes / args.episodes_per_update)
     best_state, best_value = None, float("inf")
+    stats_history = []
     started = time.perf_counter()
     for update in range(updates):
         trainer.entropy_coef = linear_schedule(0.02, 0.002, update, updates)
@@ -357,7 +364,7 @@ def train_ppo(
         for group in trainer.optimizer.param_groups:
             group["lr"] = lr
         count = min(args.episodes_per_update, args.episodes - update * args.episodes_per_update)
-        trainer.train(1, count)
+        stats_history.extend(trainer.train(1, count))
         if contract.evaluation_checkpoint == "best_validation" and (
             (update + 1) % max(1, updates // 10) == 0 or update + 1 == updates
         ):
@@ -378,7 +385,47 @@ def train_ppo(
                 best_state = deepcopy(agent.state_dict())
     if contract.evaluation_checkpoint == "best_validation" and best_state is not None:
         agent.load_state_dict(best_state)
-    return agent, time.perf_counter() - started
+    elapsed = time.perf_counter() - started
+    agent.training_diagnostics = {
+        "parameter_count": sum(parameter.numel() for parameter in agent.parameters()),
+        "environment_interactions": trainer.environment_interactions,
+        "optimizer_updates": trainer.optimizer_update_count,
+        "wall_seconds": elapsed,
+        "mean_critic_loss": (
+            statistics.fmean(item.value_loss for item in stats_history)
+            if stats_history
+            else 0.0
+        ),
+        "mean_gradient_norm": (
+            statistics.fmean(item.gradient_norm for item in stats_history)
+            if stats_history
+            else 0.0
+        ),
+        "mean_critic_gradient_norm": (
+            statistics.fmean(item.critic_gradient_norm for item in stats_history)
+            if stats_history
+            else 0.0
+        ),
+        "mean_critic_total_cost_mae": (
+            statistics.fmean(item.critic_total_cost_mae for item in stats_history)
+            if stats_history
+            else 0.0
+        ),
+        "mean_critic_tardiness_mae": (
+            statistics.fmean(item.critic_tardiness_mae for item in stats_history)
+            if stats_history
+            else 0.0
+        ),
+        "mean_critic_shortfall_mae": (
+            statistics.fmean(item.critic_shortfall_mae for item in stats_history)
+            if stats_history
+            else 0.0
+        ),
+        "num_quantiles": getattr(args, "num_quantiles", None),
+        "quantile_loss_coef": getattr(args, "quantile_loss_coef", None),
+        "d2_width_dispersion": trainer.quantile_width_diagnostics(),
+    }
+    return agent, elapsed
 
 
 def train_dqn(
@@ -452,6 +499,8 @@ def run(args):
             library.action_size(),
             contract=contract,
             critic_variant=critic_variant,
+            num_quantiles=getattr(args, "num_quantiles", None),
+            quantile_loss_coef=getattr(args, "quantile_loss_coef", None),
         )
         state = torch.load(args.checkpoint, map_location="cpu", weights_only=False)
         expected_hash = file_sha256(args.library_file)
@@ -479,7 +528,14 @@ def run(args):
             raise ValueError("checkpoint selection semantics mismatch")
         if state.get("critic_variant", "legacy") != critic_variant:
             raise ValueError("checkpoint critic variant mismatch")
+        if state.get("num_quantiles") != getattr(args, "num_quantiles", None):
+            raise ValueError("checkpoint num_quantiles mismatch")
+        if state.get("quantile_loss_coef") != getattr(
+            args, "quantile_loss_coef", None
+        ):
+            raise ValueError("checkpoint quantile_loss_coef mismatch")
         agent.load_state_dict(state["agent_state_dict"])
+        agent.training_diagnostics = state.get("training_diagnostics")
     elif args.selector in {"hgt_ppo", "mlp_ppo"}:
         agent, training_seconds = train_ppo(
             args,
@@ -531,6 +587,11 @@ def run(args):
                 ),
                 "checkpoint_semantics": contract.evaluation_checkpoint,
                 "critic_variant": getattr(agent, "critic_variant", "legacy"),
+                "num_quantiles": getattr(args, "num_quantiles", None),
+                "quantile_loss_coef": getattr(args, "quantile_loss_coef", None),
+                "training_diagnostics": getattr(
+                    agent, "training_diagnostics", None
+                ),
             },
             output
             / (
@@ -585,6 +646,13 @@ def run(args):
         "critic_variant": (
             getattr(agent, "critic_variant", None) if agent is not None else None
         ),
+        "num_quantiles": getattr(args, "num_quantiles", None),
+        "quantile_loss_coef": getattr(args, "quantile_loss_coef", None),
+        "training_diagnostics": (
+            getattr(agent, "training_diagnostics", None)
+            if agent is not None
+            else None
+        ),
         "episodes": args.episodes,
         "episodes_per_update": args.episodes_per_update,
         "f_ref": (
@@ -619,6 +687,18 @@ def run(args):
                 if global_reward_scale is not None
                 else None
             ),
+            "critic_variant": (
+                getattr(agent, "critic_variant", None)
+                if agent is not None
+                else None
+            ),
+            "num_quantiles": getattr(args, "num_quantiles", None),
+            "quantile_loss_coef": getattr(args, "quantile_loss_coef", None),
+            "training_diagnostics": (
+                getattr(agent, "training_diagnostics", None)
+                if agent is not None
+                else None
+            ),
             "test_seeds": list(test_seeds),
             "config": {key: value for key, value in vars(args).items() if key != "force"},
         },
@@ -636,9 +716,19 @@ def parse_args(argv=None):
     )
     parser.add_argument(
         "--critic-variant",
-        choices=("c1", "c2", "c3", "c4"),
+        choices=("c1", "c2", "c3", "c4", "d1", "d2"),
         default="c4",
-        help="paper_20261030 scalar Critic; legacy ignores this option",
+        help="paper_20261030 Critic variant; legacy ignores this option",
+    )
+    parser.add_argument(
+        "--num-quantiles",
+        type=int,
+        help="D1/D2 quantile count K; select on validation only",
+    )
+    parser.add_argument(
+        "--quantile-loss-coef",
+        type=float,
+        help="D1/D2 alpha_Q; select on validation only",
     )
     parser.add_argument("--library-id", required=True)
     parser.add_argument("--library-file", required=True)
@@ -670,6 +760,20 @@ def parse_args(argv=None):
         args.episodes_per_update = 3
     if args.checkpoint and args.selector in {"random", "fixed"}:
         parser.error("--checkpoint requires a trainable selector")
+    if args.critic_variant in {"d1", "d2"}:
+        if args.selector != "hgt_ppo":
+            parser.error("D1/D2 require the public CRG hgt_ppo selector")
+        if args.num_quantiles is None or args.quantile_loss_coef is None:
+            parser.error(
+                "D1/D2 require explicit --num-quantiles and "
+                "--quantile-loss-coef chosen on validation"
+            )
+        if args.num_quantiles <= 0 or args.quantile_loss_coef < 0.0:
+            parser.error("D1/D2 quantile settings must be positive/non-negative")
+        if not math.isfinite(args.quantile_loss_coef):
+            parser.error("--quantile-loss-coef must be finite")
+    elif args.num_quantiles is not None or args.quantile_loss_coef is not None:
+        parser.error("quantile settings are valid only for D1/D2")
     return args
 
 

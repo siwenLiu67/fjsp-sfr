@@ -13,6 +13,11 @@ from fjsp_sfr.rl.certificate_critic import (
     CriticOutput,
     CriticStepContext,
 )
+from fjsp_sfr.rl.cc_dvl import (
+    CCDVLCritic,
+    DISTRIBUTIONAL_CRITIC_VARIANTS,
+    QuantileCriticOutput,
+)
 from fjsp_sfr.rl.graph import PAPER_GRAPH, HeteroGraphData
 from fjsp_sfr.rl.hgt import HGTEncoder
 
@@ -26,6 +31,8 @@ class HGTPPOAgent(nn.Module):
         hidden_dim: int = 64,
         encoder_type: str = "legacy_hgt",
         critic_variant: str = "legacy",
+        num_quantiles: int | None = None,
+        quantile_loss_coef: float | None = None,
         **encoder_kwargs,
     ) -> None:
         super().__init__()
@@ -49,6 +56,20 @@ class HGTPPOAgent(nn.Module):
             self.value_head = None
             self.certificate_critic = CertificateCritic(
                 critic_variant, hidden_dim=hidden_dim
+            )
+        elif critic_variant in DISTRIBUTIONAL_CRITIC_VARIANTS:
+            if encoder_type != "crg_gatv2" or output_dim != hidden_dim:
+                raise ValueError("D1-D2 require the public CRG state representation")
+            if num_quantiles is None or quantile_loss_coef is None:
+                raise ValueError(
+                    "D1-D2 require explicit num_quantiles and quantile_loss_coef"
+                )
+            self.value_head = None
+            self.certificate_critic = CCDVLCritic(
+                critic_variant,
+                hidden_dim=hidden_dim,
+                num_quantiles=num_quantiles,
+                quantile_loss_coef=quantile_loss_coef,
             )
         else:
             raise ValueError(f"unknown critic_variant: {critic_variant}")
@@ -111,11 +132,18 @@ class HGTPPOAgent(nn.Module):
         *,
         f_ref: float,
         reward_scale: float,
-    ) -> tuple[torch.Tensor, CriticOutput, CRGEncoding]:
+    ) -> tuple[
+        torch.Tensor,
+        CriticOutput | QuantileCriticOutput,
+        CRGEncoding,
+    ]:
         """Share only the public encoder; private fields enter the Critic after it."""
 
-        if self.critic_variant not in CRITIC_VARIANTS:
-            raise RuntimeError("forward_with_critic requires C1-C4")
+        if self.critic_variant not in (
+            *CRITIC_VARIANTS,
+            *DISTRIBUTIONAL_CRITIC_VARIANTS,
+        ):
+            raise RuntimeError("forward_with_critic requires C1-C4 or D1-D2")
         encoding = self.encoder.encode(data)
         log_probs = self._masked_actor_log_probs(encoding.state, action_mask)
         assert self.certificate_critic is not None
