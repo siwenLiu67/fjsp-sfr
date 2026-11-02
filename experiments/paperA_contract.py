@@ -58,7 +58,7 @@ PAPER_20261030 = FormalExperimentContract(
     evaluation_checkpoint="final_training",
     runtime_ready=False,
     blockers=(
-        "C1-C4 and D1-D2 critic variants are not implemented",
+        "D1-D2 distributional critic variants are not implemented",
     ),
 )
 

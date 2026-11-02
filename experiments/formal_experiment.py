@@ -121,6 +121,7 @@ def make_agent(
     action_size: int,
     *,
     contract: FormalExperimentContract,
+    critic_variant: str = "legacy",
 ):
     common = dict(action_size=action_size, hidden_dim=64)
     if selector == "hgt_ppo":
@@ -136,6 +137,7 @@ def make_agent(
             job_input_dim=contract.node_dimensions[0],
             machine_input_dim=contract.node_dimensions[1],
             checkpoint_input_dim=contract.node_dimensions[2],
+            critic_variant=critic_variant,
         )
     if selector == "mlp_ppo":
         return MLPPPOAgent(**common, job_input_dim=contract.node_dimensions[0])
@@ -196,14 +198,13 @@ def evaluate_episode(
                     probs_tensor = torch.softmax(values, dim=-1)
                     action = int(values.argmax().item())
                 else:
-                    log_probs, _value = agent(
-                        graph, torch.ones(library.action_size(), dtype=torch.bool)
-                    )
+                    mask = torch.ones(library.action_size(), dtype=torch.bool)
+                    if hasattr(agent, "actor_log_probs"):
+                        log_probs = agent.actor_log_probs(graph, mask)
+                    else:
+                        log_probs, _value = agent(graph, mask)
                     probs_tensor = log_probs.exp()
                     if merge_actions:
-                        mask = torch.ones(
-                            library.action_size(), dtype=torch.bool
-                        )
                         groups, candidate_indices, _dispatches = (
                             concrete_rule_action_groups(
                                 env,
@@ -309,10 +310,17 @@ def train_ppo(
     contract,
     global_f_ref: float | None = None,
 ):
-    # The frozen protocol uses validation only before formal training for
-    # prespecified hyperparameter selection; it never selects an interim model.
-    del validation_instances
-    agent = make_agent(args.selector, library.action_size(), contract=contract)
+    critic_variant = (
+        getattr(args, "critic_variant", "c4")
+        if contract.name == "paper_20261030"
+        else "legacy"
+    )
+    agent = make_agent(
+        args.selector,
+        library.action_size(),
+        contract=contract,
+        critic_variant=critic_variant,
+    )
     trainer = PPOTrainer(
         agent=agent,
         library=library,
@@ -341,6 +349,7 @@ def train_ppo(
         ),
     )
     updates = math.ceil(args.episodes / args.episodes_per_update)
+    best_state, best_value = None, float("inf")
     started = time.perf_counter()
     for update in range(updates):
         trainer.entropy_coef = linear_schedule(0.02, 0.002, update, updates)
@@ -349,6 +358,26 @@ def train_ppo(
             group["lr"] = lr
         count = min(args.episodes_per_update, args.episodes - update * args.episodes_per_update)
         trainer.train(1, count)
+        if contract.evaluation_checkpoint == "best_validation" and (
+            (update + 1) % max(1, updates // 10) == 0 or update + 1 == updates
+        ):
+            values, _metrics = evaluate_set(
+                library,
+                validation_instances,
+                VALIDATION_SEEDS[: len(validation_instances)],
+                contract=contract,
+                selector=args.selector,
+                agent=agent,
+                mask_checkpoint=args.mask_checkpoint,
+                mask_forecast=args.mask_forecast,
+                action_equivalence_merge=False,
+            )
+            mean = statistics.fmean(item["F"] for item in values)
+            if mean < best_value:
+                best_value = mean
+                best_state = deepcopy(agent.state_dict())
+    if contract.evaluation_checkpoint == "best_validation" and best_state is not None:
+        agent.load_state_dict(best_state)
     return agent, time.perf_counter() - started
 
 
@@ -413,7 +442,17 @@ def run(args):
     agent = None
     training_seconds = 0.0
     if args.checkpoint:
-        agent = make_agent(args.selector, library.action_size(), contract=contract)
+        critic_variant = (
+            getattr(args, "critic_variant", "c4")
+            if contract.name == "paper_20261030"
+            else "legacy"
+        )
+        agent = make_agent(
+            args.selector,
+            library.action_size(),
+            contract=contract,
+            critic_variant=critic_variant,
+        )
         state = torch.load(args.checkpoint, map_location="cpu", weights_only=False)
         expected_hash = file_sha256(args.library_file)
         if state.get("selector") != args.selector:
@@ -436,8 +475,10 @@ def run(args):
         )
         if state.get("action_equivalence_merge") != expected_merge:
             raise ValueError("checkpoint action-equivalence setting mismatch")
-        if state.get("checkpoint_semantics") != "final_training":
-            raise ValueError("formal evaluation requires the final training model")
+        if state.get("checkpoint_semantics") != contract.evaluation_checkpoint:
+            raise ValueError("checkpoint selection semantics mismatch")
+        if state.get("critic_variant", "legacy") != critic_variant:
+            raise ValueError("checkpoint critic variant mismatch")
         agent.load_state_dict(state["agent_state_dict"])
     elif args.selector in {"hgt_ppo", "mlp_ppo"}:
         agent, training_seconds = train_ppo(
@@ -488,9 +529,15 @@ def run(args):
                     contract.action_equivalence_merge
                     and not args.disable_action_equivalence_merge
                 ),
-                "checkpoint_semantics": "final_training",
+                "checkpoint_semantics": contract.evaluation_checkpoint,
+                "critic_variant": getattr(agent, "critic_variant", "legacy"),
             },
-            output / "final.pt",
+            output
+            / (
+                "final.pt"
+                if contract.evaluation_checkpoint == "final_training"
+                else "best.pt"
+            ),
         )
 
     test_seeds = TEST_SEEDS_BY_SCALE[eval_scale]
@@ -534,6 +581,9 @@ def run(args):
         "action_equivalence_merge": (
             contract.action_equivalence_merge
             and not args.disable_action_equivalence_merge
+        ),
+        "critic_variant": (
+            getattr(agent, "critic_variant", None) if agent is not None else None
         ),
         "episodes": args.episodes,
         "episodes_per_update": args.episodes_per_update,
@@ -583,6 +633,12 @@ def parse_args(argv=None):
         choices=tuple(FORMAL_EXPERIMENT_CONTRACTS),
         required=True,
         help="explicit implementation contract; no implicit legacy fallback",
+    )
+    parser.add_argument(
+        "--critic-variant",
+        choices=("c1", "c2", "c3", "c4"),
+        default="c4",
+        help="paper_20261030 scalar Critic; legacy ignores this option",
     )
     parser.add_argument("--library-id", required=True)
     parser.add_argument("--library-file", required=True)

@@ -156,7 +156,8 @@ def command_for(spec: RunSpec, output_root: Path, *, smoke: bool) -> list[str]:
     if spec.eval_scale:
         command += ["--eval-scale", spec.eval_scale]
     if spec.checkpoint_run:
-        command += ["--checkpoint", str(output_root / spec.checkpoint_run / "final.pt")]
+        # This matrix remains explicitly legacy until the P4 runtime gate opens.
+        command += ["--checkpoint", str(output_root / spec.checkpoint_run / "best.pt")]
     if smoke:
         command.append("--smoke")
     return command

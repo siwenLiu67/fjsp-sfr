@@ -8,6 +8,7 @@ import torch
 
 from fjsp_sfr.rl.graph import HeteroGraphData
 from fjsp_sfr.rl.action_groups import ActionGroups, ConcreteDispatch
+from fjsp_sfr.rl.certificate_critic import CriticStepContext, CriticTargets
 
 
 @dataclass
@@ -24,6 +25,11 @@ class RolloutStep:
     action_groups: ActionGroups = ()
     action_group_index: int | None = None
     concrete_dispatch: ConcreteDispatch | None = None
+    critic_context: CriticStepContext | None = None
+    critic_targets: CriticTargets | None = None
+    immediate_total_cost: float = 0.0
+    immediate_tardiness: float = 0.0
+    f_ref: float = 1.0
 
 
 @dataclass

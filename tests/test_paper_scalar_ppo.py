@@ -180,7 +180,7 @@ def test_action_equivalence_can_be_disabled_for_ablation():
     assert all(step.action_groups == () for step in buffer.steps)
 
 
-def test_cross_scale_formal_command_loads_final_not_interim_checkpoint(tmp_path):
+def test_cross_scale_legacy_command_loads_validation_best_checkpoint(tmp_path):
     command = command_for(
         RunSpec(
             name="generalization",
@@ -195,5 +195,5 @@ def test_cross_scale_formal_command_loads_final_not_interim_checkpoint(tmp_path)
         smoke=True,
     )
     checkpoint = command[command.index("--checkpoint") + 1]
-    assert checkpoint.endswith("source-run/final.pt")
+    assert checkpoint.endswith("source-run/best.pt")
 

@@ -14,6 +14,7 @@ from torch.distributions import Categorical
 
 from fjsp_sfr.core.models import FJSPInstance
 from fjsp_sfr.core.objective import compute_objective
+from fjsp_sfr.dispatch.certificates import PrivilegedCheckpointCertificate
 from fjsp_sfr.dispatch.classic_rules import ClassicRule
 from fjsp_sfr.dispatch.rule_library import RuleLibrary
 from fjsp_sfr.dispatch.symbolic_rule import SymbolicRule
@@ -35,6 +36,12 @@ from fjsp_sfr.rl.action_groups import (
     aggregate_rule_log_probs,
     build_action_groups,
     validate_action_groups,
+)
+from fjsp_sfr.rl.certificate_critic import (
+    CRITIC_VARIANTS,
+    PRIVILEGED_FEATURE_NAMES,
+    CriticStepContext,
+    CriticTargets,
 )
 from fjsp_sfr.rl.rollout_buffer import RolloutBuffer, RolloutStep
 
@@ -236,6 +243,132 @@ def concrete_rule_action_groups(
     return groups, tuple(candidate_indices), tuple(dispatches)
 
 
+def build_critic_step_context(
+    env: CAPPORuleSelectionEnv,
+    graph: HeteroGraphData,
+    critic_variant: str,
+) -> CriticStepContext | None:
+    """Build C2 public or C3/C4 private fields in graph checkpoint order."""
+
+    if critic_variant == "c1" or critic_variant == "legacy":
+        return None
+    if critic_variant not in {"c2", "c3", "c4"}:
+        raise ValueError(f"unknown critic variant: {critic_variant}")
+    device = graph.checkpoint_x.device
+    keys = graph.checkpoint_keys
+    checkpoints = [env.current_metrics.checkpoints[key] for key in keys]
+    weights = torch.tensor(
+        [checkpoint.checkpoint_weight for checkpoint in checkpoints],
+        dtype=torch.float32,
+        device=device,
+    )
+    quantities = torch.tensor(
+        [checkpoint.required_quantity for checkpoint in checkpoints],
+        dtype=torch.float32,
+        device=device,
+    )
+    online = (
+        graph.checkpoint_x[:, 10:12]
+        if graph.checkpoint_x.shape[0]
+        else graph.checkpoint_x.new_empty((0, 2))
+    )
+    if critic_variant == "c2":
+        context = CriticStepContext(keys, weights, quantities, online)
+        context.validate(privileged=False)
+        return context
+
+    private_by_key: dict[tuple[int, int], PrivilegedCheckpointCertificate] = {
+        certificate.checkpoint_key: certificate
+        for certificate in env.critic_certificate_record.certificates
+    }
+    missing = [key for key in keys if key not in private_by_key]
+    if missing:
+        raise RuntimeError(f"privileged certificate record lacks active keys: {missing}")
+    lower = torch.tensor(
+        [private_by_key[key].historical.lower for key in keys],
+        dtype=torch.float32,
+        device=device,
+    )
+    upper = torch.tensor(
+        [private_by_key[key].historical.upper for key in keys],
+        dtype=torch.float32,
+        device=device,
+    )
+    private_rows = []
+    for index, key in enumerate(keys):
+        certificate = private_by_key[key]
+        quantity = max(float(checkpoints[index].required_quantity), 1e-12)
+        count = max(0.0, float(certificate.future_job_count))
+        private_rows.append(
+            (
+                float(certificate.historical.lower) / quantity,
+                float(certificate.historical.upper) / quantity,
+                float(certificate.future_supply_bound) / quantity,
+                count / (1.0 + count),
+            )
+        )
+    private = (
+        torch.tensor(private_rows, dtype=torch.float32, device=device)
+        if private_rows
+        else graph.checkpoint_x.new_empty((0, len(PRIVILEGED_FEATURE_NAMES)))
+    )
+    context = CriticStepContext(
+        keys,
+        weights,
+        quantities,
+        online,
+        private,
+        lower,
+        upper,
+    )
+    context.validate(privileged=True)
+    return context
+
+
+def finalize_episode_critic_targets(
+    steps: Sequence[RolloutStep],
+    objective,
+) -> None:
+    """Attach exact undiscounted remaining-cost labels to one completed episode.
+
+    Checkpoint labels are the final physical shortfalls, aligned only to the
+    checkpoints that were active in that decision's public graph.  Therefore a
+    settled checkpoint cannot be charged again at later decisions.
+    """
+
+    remaining_total = float(objective.Z)
+    remaining_tardiness = float(objective.total_tardiness)
+    for step in steps:
+        context = step.critic_context
+        if context is None:
+            labels = torch.empty(0, dtype=torch.float32)
+        else:
+            labels = torch.tensor(
+                [
+                    float(objective.per_checkpoint_shortfall[key])
+                    for key in context.checkpoint_keys
+                ],
+                dtype=torch.float32,
+                device=context.weights.device,
+            )
+        step.critic_targets = CriticTargets(
+            remaining_total_cost=remaining_total,
+            remaining_tardiness=remaining_tardiness,
+            checkpoint_shortfalls=labels,
+        )
+        remaining_total -= float(step.immediate_total_cost)
+        remaining_tardiness -= float(step.immediate_tardiness)
+        if remaining_total < -1e-7 or remaining_tardiness < -1e-7:
+            raise RuntimeError("incremental costs exceed the final objective")
+        remaining_total = max(0.0, remaining_total)
+        remaining_tardiness = max(0.0, remaining_tardiness)
+
+    if abs(remaining_total) > 1e-6 or abs(remaining_tardiness) > 1e-6:
+        raise RuntimeError(
+            "decision increments do not telescope to the final objective labels"
+        )
+
+
 class PPOTrainer:
     def __init__(
         self,
@@ -309,6 +442,9 @@ class PPOTrainer:
                 raise ValueError("formal scalar PPO requires one global calibrated F_ref")
             if reward_scale != 10.0:
                 raise ValueError("formal scalar PPO requires reward_scale=10")
+            if getattr(agent, "critic_variant", "legacy") in CRITIC_VARIANTS:
+                if reward_reference_mode != "global_calibration":
+                    raise ValueError("C1-C4 require the global calibrated F_ref")
 
         self.agent = agent
         self.library = library
@@ -460,13 +596,39 @@ class PPOTrainer:
                     else self.f_refs[instance_index]
                 )
             assert episode_f_ref is not None
-            env = CAPPORuleSelectionEnv(instance)
+            critic_variant = getattr(self.agent, "critic_variant", "legacy")
+            if critic_variant in {"c2", "c3", "c4"} and (
+                float(instance.alpha) != 1.0 or float(instance.beta) != 1.0
+            ):
+                raise ValueError("decomposed critics require alpha=beta=1")
+            env = CAPPORuleSelectionEnv(
+                instance,
+                enable_privileged_certificates=critic_variant in {"c3", "c4"},
+            )
             env.reset()
             episode_reward = 0.0
+            episode_start = len(buffer.steps)
 
             while True:
                 graph, features = self._build_graph_for_env(env)
                 mask = self._get_action_mask(env)
+                critic_context = build_critic_step_context(
+                    env, graph, critic_variant
+                )
+                with torch.no_grad():
+                    if critic_variant in CRITIC_VARIANTS:
+                        rule_log_probs, critic_output, _encoding = (
+                            self.agent.forward_with_critic(
+                                graph,
+                                mask,
+                                critic_context,
+                                f_ref=episode_f_ref,
+                                reward_scale=self.reward_scale,
+                            )
+                        )
+                        value_tensor = critic_output.total_value
+                    else:
+                        rule_log_probs, value_tensor = self.agent(graph, mask)
                 if self.action_equivalence_merge:
                     groups, candidate_indices, dispatches = concrete_rule_action_groups(
                         env,
@@ -475,26 +637,26 @@ class PPOTrainer:
                         mask,
                         merge_equivalent=True,
                     )
-                    with torch.no_grad():
-                        rule_log_probs, value_tensor = self.agent(graph, mask)
-                        group_log_probs = aggregate_rule_log_probs(
-                            rule_log_probs, groups, mask
-                        )
-                        distribution = Categorical(logits=group_log_probs)
-                        group_tensor = distribution.sample()
-                        group_index = int(group_tensor.item())
-                        action = groups[group_index][0]
-                        log_prob = float(
-                            distribution.log_prob(group_tensor).item()
-                        )
-                        value = float(value_tensor.item())
+                    group_log_probs = aggregate_rule_log_probs(
+                        rule_log_probs, groups, mask
+                    )
+                    distribution = Categorical(logits=group_log_probs)
+                    group_tensor = distribution.sample()
+                    group_index = int(group_tensor.item())
+                    action = groups[group_index][0]
+                    log_prob = float(distribution.log_prob(group_tensor).item())
+                    value = float(value_tensor.item())
                     candidate_index = candidate_indices[action]
                     concrete_dispatch = dispatches[action]
                 else:
                     groups = ()
                     group_index = None
                     concrete_dispatch = None
-                    action, log_prob, value = self.agent.select_action(graph, mask)
+                    distribution = Categorical(logits=rule_log_probs)
+                    action_tensor = distribution.sample()
+                    action = int(action_tensor.item())
+                    log_prob = float(distribution.log_prob(action_tensor).item())
+                    value = float(value_tensor.item())
                     rule = self.library.get_rule(action)
                     candidate_index = _rule_candidate_index(
                         rule,
@@ -532,10 +694,22 @@ class PPOTrainer:
                         action_groups=groups,
                         action_group_index=group_index,
                         concrete_dispatch=concrete_dispatch,
+                        critic_context=critic_context,
+                        immediate_total_cost=-float(result.reward),
+                        immediate_tardiness=float(
+                            result.reward_breakdown.delta_tardiness
+                        ),
+                        f_ref=float(episode_f_ref),
                     )
                 )
                 episode_reward += reward
                 if result.terminated:
+                    if result.objective is None:
+                        raise RuntimeError("terminated episode lacks final objective")
+                    if critic_variant in CRITIC_VARIANTS:
+                        finalize_episode_critic_targets(
+                            buffer.steps[episode_start:], result.objective
+                        )
                     break
 
             episode_rewards.append(episode_reward)
@@ -554,9 +728,7 @@ class PPOTrainer:
         advantage_tensor, advantage_std = standardize_advantages(
             advantages, device=self.device
         )
-        return_tensor = torch.tensor(
-            returns, dtype=torch.float32, device=self.device
-        )
+        return_tensor = torch.tensor(returns, dtype=torch.float32, device=self.device)
         old_log_probs = torch.tensor(
             [step.log_prob for step in buffer.steps],
             dtype=torch.float32,
@@ -573,9 +745,32 @@ class PPOTrainer:
         for _epoch in range(self.epochs_per_update):
             new_log_prob_rows: list[torch.Tensor] = []
             value_rows: list[torch.Tensor] = []
+            critic_loss_rows: list[torch.Tensor] = []
             entropy_rows: list[torch.Tensor] = []
             for index, step in enumerate(buffer.steps):
-                log_probs, value = self.agent(step.graph, step.action_mask)
+                critic_variant = getattr(self.agent, "critic_variant", "legacy")
+                if critic_variant in CRITIC_VARIANTS:
+                    log_probs, critic_output, _encoding = self.agent.forward_with_critic(
+                        step.graph,
+                        step.action_mask,
+                        step.critic_context,
+                        f_ref=step.f_ref,
+                        reward_scale=self.reward_scale,
+                    )
+                    value = critic_output.total_value
+                    if step.critic_targets is None:
+                        raise ValueError("C1-C4 rollout step lacks MC targets")
+                    assert self.agent.certificate_critic is not None
+                    critic_loss_rows.append(
+                        self.agent.certificate_critic.loss(
+                            critic_output,
+                            step.critic_targets,
+                            step.critic_context,
+                            f_ref=step.f_ref,
+                        )
+                    )
+                else:
+                    log_probs, value = self.agent(step.graph, step.action_mask)
                 if step.action_groups:
                     validate_action_groups(step.action_groups, step.action_mask)
                     if step.action_group_index is None:
@@ -606,7 +801,10 @@ class PPOTrainer:
                 1.0 + self.clip_eps,
             ) * advantage_tensor
             policy_loss = -torch.minimum(surrogate, clipped_surrogate).mean()
-            value_loss = (values - return_tensor).pow(2).mean()
+            if critic_loss_rows:
+                value_loss = torch.stack(critic_loss_rows).mean()
+            else:
+                value_loss = (values - return_tensor).pow(2).mean()
             loss = (
                 policy_loss
                 + self.value_coef * value_loss
@@ -649,7 +847,14 @@ class PPOTrainer:
 
         values: list[float] = []
         for step in buffer.steps:
-            rule_log_probs, _value = self.agent(step.graph, step.action_mask)
+            if hasattr(self.agent, "actor_log_probs"):
+                rule_log_probs = self.agent.actor_log_probs(
+                    step.graph, step.action_mask
+                )
+            else:
+                rule_log_probs, _value = self.agent(
+                    step.graph, step.action_mask
+                )
             if step.action_groups:
                 if step.action_group_index is None:
                     raise ValueError("grouped rollout step lacks group index")
