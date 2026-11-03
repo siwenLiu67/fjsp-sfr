@@ -377,7 +377,7 @@ def test_paper_contract_b_formal_scenario_has_forecast_through_latest_checkpoint
         scenario_generator.scenario_spec("center").load
         * scenario_generator.scenario_spec("center").machines
     )
-    entity_rate = (1.0 / mean_interval) / instance.num_entities
+    entity_rate = (1.0 / mean_interval) * instance.metadata["entity_shares"][0]
     quantity_values = tuple(
         range(fixed["quantity"][0], fixed["quantity"][1] + 1)
     )
