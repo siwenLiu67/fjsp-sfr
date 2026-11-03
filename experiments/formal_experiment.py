@@ -62,8 +62,11 @@ TEST_SEEDS_BY_SCALE = {
 }
 
 
-def load_library(path: str | None) -> RuleLibrary:
-    return build_rule_library() if path == "handwritten6" else RuleLibrary.from_json(path)
+def load_library(path: str | None, *, contract: FormalExperimentContract | None = None) -> RuleLibrary:
+    library = build_rule_library() if path == "handwritten6" else RuleLibrary.from_json(path)
+    if contract is not None and contract.name == "paper_20261030":
+        library.validate_protocol(contract.feature_set, formal=True)
+    return library
 
 
 def graph_for(
@@ -477,7 +480,7 @@ def run(args):
         return
     random.seed(args.seed)
     torch.manual_seed(args.seed)
-    library = load_library(args.library_file)
+    library = load_library(args.library_file, contract=contract)
     train_scale = args.scale
     eval_scale = args.eval_scale or args.scale
     instance_factory = lambda seed: make_scaled_instance(
