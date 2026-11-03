@@ -126,11 +126,13 @@ def build_compound_poisson_forecast_provider(
     quantity_mean: float,
     quantity_second_moment: float,
     max_time: int,
+    entity_shares: Mapping[int, float] | None = None,
 ) -> FixedForecastProvider:
     """Build the paper's leakage-safe homogeneous compound-Poisson forecast.
 
-    Arrivals are split uniformly across the supplied service entities, so the
-    rate for each entity is ``total_arrival_rate / len(entity_ids)``.  Over a
+    An optional public share vector defines entity rates as
+    ``lambda_r = total_arrival_rate * pi_r``. If omitted, the legacy uniform
+    entity allocation is retained for backward compatibility. Over a
     horizon of length ``s`` the quantity mean and variance are respectively
 
     ``lambda_r * s * E[q]`` and ``lambda_r * s * E[q**2]``.
@@ -156,20 +158,26 @@ def build_compound_poisson_forecast_provider(
     if max_time <= 0:
         raise ValueError("forecast horizon must be positive")
 
-    entity_rate = float(total_arrival_rate) / len(ids)
-    horizon_mean = entity_rate * max_time * float(quantity_mean)
-    horizon_variance = entity_rate * max_time * float(quantity_second_moment)
-    buckets = {
-        entity_id: (
+    if entity_shares is None:
+        shares = {entity_id: 1.0 / len(ids) for entity_id in ids}
+    else:
+        if set(entity_shares) != set(ids):
+            raise ValueError("forecast entity shares must cover exactly the supplied entities")
+        shares = {entity_id: float(entity_shares[entity_id]) for entity_id in ids}
+        if any(not math.isfinite(value) or value <= 0 for value in shares.values()):
+            raise ValueError("forecast entity shares must be finite and positive")
+        if not math.isclose(sum(shares.values()), 1.0, rel_tol=0, abs_tol=1e-9):
+            raise ValueError("forecast entity shares must sum to one")
+    buckets = {}
+    for entity_id in ids:
+        entity_rate = float(total_arrival_rate) * shares[entity_id]
+        horizon_mean = entity_rate * max_time * float(quantity_mean)
+        horizon_variance = entity_rate * max_time * float(quantity_second_moment)
+        buckets[entity_id] = (
             ForecastBucket(
-                0,
-                int(max_time),
-                horizon_mean,
-                math.sqrt(horizon_variance),
+                0, int(max_time), horizon_mean, math.sqrt(horizon_variance)
             ),
         )
-        for entity_id in ids
-    }
     # There is no stochastic forecast update in the homogeneous model.  The
     # online consumer recomputes the remaining interval from its current time.
     # ``max_time + 1`` is therefore only an interface cadence, not Delta_b.
