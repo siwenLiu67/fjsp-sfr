@@ -1,0 +1,28 @@
+name: Paper A P4.2 contracts
+on:
+  pull_request:
+    paths:
+      - "generation/**"
+      - "core/forecast.py"
+      - "dispatch/**"
+      - "experiments/**"
+      - "rl/**"
+      - "tests/test_p42_rebuild_contracts.py"
+      - ".github/workflows/papera-p42-contract.yml"
+  workflow_dispatch:
+
+jobs:
+  p42-contract-tests:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - name: Install test dependencies
+        run: python -m pip install --upgrade pytest torch numpy
+      - name: Compile Python files
+        run: python -m compileall -q core dispatch env generation experiments rl tests
+      - name: Validate P4.2 contracts
+        run: PYTHONPATH=.. python -m pytest -q tests/test_p42_rebuild_contracts.py
