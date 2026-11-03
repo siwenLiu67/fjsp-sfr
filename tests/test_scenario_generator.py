@@ -46,18 +46,21 @@ def test_each_entity_commitment_uses_public_expectations_not_realized_jobs():
     instance = make_scenario_instance("center", 19)
     config = load_scenario_config()
     expected_q = sum(range(1, 6)) / 5
-    expected_final_quantity = (
-        instance.num_jobs / instance.num_entities
-        * expected_q
-        * config["checkpoint"]["commitment_ratio"]
-    )
-    expected_checkpoints = instance.entities[0].checkpoints
+    shares = instance.metadata["entity_shares"]
+    assert sum(shares) == pytest.approx(1.0)
     for entity in instance.entities:
         assert len(entity.checkpoints) == 2
-        assert entity.checkpoints == expected_checkpoints
+        expected_final_quantity = (
+            instance.num_jobs * expected_q * shares[entity.entity_id]
+            * config["checkpoint"]["commitment_ratio"]
+        )
         assert entity.checkpoints[-1].required_quantity == pytest.approx(
             expected_final_quantity
         )
+        assert entity.checkpoints[0].required_quantity == pytest.approx(
+            config["checkpoint"]["first_demand_ratio"] * expected_final_quantity
+        )
+        assert entity.checkpoints[-1].time == instance.metadata["entity_final_times"][entity.entity_id]
     assert instance.metadata["realization_used_to_build_commitment"] is False
 
 
