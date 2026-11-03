@@ -89,26 +89,41 @@ def calibrate(output_dir: Path, *, config_path: Path = CONFIG_PATH, seeds: tuple
         raise ValueError("calibration seeds overlap other experiment partitions")
 
     rows = []
-    for rho, theta, omega in itertools.product(RHO, THETA, OMEGA):
+    # SPT and ATC only read processing/due-date data. A common positive weight
+    # multiplier changes neither action order nor first-checkpoint completion
+    # counts. Reuse each (rho, theta) rollout across all five omega levels.
+    for rho, theta in itertools.product(RHO, THETA):
         cfg = json.loads(json.dumps(base))
         cp = cfg["checkpoint"]
         cp["commitment_ratio"] = rho
         cp["first_time_ratio"] = theta
         cp["first_demand_ratio"] = 0.55
-        cp["weights"] = [omega, 3 * omega]
+        cp["weights"] = [1.0, 3.0]
         cp["weight_scale"] = 1.0
         with tempfile.TemporaryDirectory(prefix="paperA-p42-") as folder:
             path = Path(folder) / "scenario.json"
             path.write_text(json.dumps(cfg, sort_keys=True), encoding="utf-8")
-            by_rule: dict[str, list[dict]] = {rule.name: [] for rule in RULES}
+            baseline: dict[str, list[dict]] = {rule.name: [] for rule in RULES}
             for seed in seeds:
                 instance = make_scenario_instance("center", seed, config_path=path)
                 lower = unavoidable_supply_shortfall(instance)
                 for rule in RULES:
                     metrics = evaluate_rule(rule, instance)
                     metrics["L"] = lower
-                    by_rule[rule.name].append(metrics)
-            rows.append(score_candidate(by_rule, rho, theta, omega))
+                    baseline[rule.name].append(metrics)
+            for omega in OMEGA:
+                adjusted: dict[str, list[dict]] = {}
+                for name, results in baseline.items():
+                    adjusted[name] = [
+                        {
+                            **row,
+                            "WSF": omega * row["WSF"],
+                            "L": omega * row["L"],
+                            "F": row["TT"] + omega * row["WSF"],
+                        }
+                        for row in results
+                    ]
+                rows.append(score_candidate(adjusted, rho, theta, omega))
     if len(rows) != 60:
         raise AssertionError("expected exactly 60 calibration rows")
     destination = output_dir / "paperA_service_calibration_60.csv"
