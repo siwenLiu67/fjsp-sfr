@@ -2,7 +2,9 @@
 
 from __future__ import annotations
 
+import hashlib
 import json
+import math
 import random
 from dataclasses import dataclass
 from pathlib import Path
@@ -72,8 +74,10 @@ def _arrival_times(initial_jobs: int, new_jobs: int, mean_interval: float, rng: 
 def build_exogenous_service_entities(
     *,
     entity_count: int,
-    expected_total_quantity_per_entity: float,
-    final_checkpoint_time: int,
+    expected_total_quantity_per_entity: float | None = None,
+    final_checkpoint_time: int | None = None,
+    entity_expected_quantities: tuple[float, ...] | None = None,
+    entity_final_times: tuple[int, ...] | None = None,
     first_time_ratio: float,
     first_demand_ratio: float,
     commitment_ratio: float,
@@ -92,10 +96,20 @@ def build_exogenous_service_entities(
 
     if entity_count <= 0:
         raise ValueError("entity_count must be positive")
-    if expected_total_quantity_per_entity <= 0.0:
-        raise ValueError("expected entity quantity must be positive")
-    if final_checkpoint_time < 2:
-        raise ValueError("final checkpoint time must be at least two")
+    if entity_expected_quantities is None:
+        if expected_total_quantity_per_entity is None:
+            raise ValueError("expected quantity must be specified")
+        entity_expected_quantities = (float(expected_total_quantity_per_entity),) * entity_count
+    if entity_final_times is None:
+        if final_checkpoint_time is None:
+            raise ValueError("final checkpoint time must be specified")
+        entity_final_times = (int(final_checkpoint_time),) * entity_count
+    if len(entity_expected_quantities) != entity_count or len(entity_final_times) != entity_count:
+        raise ValueError("entity commitments and deadlines must align with entity count")
+    if any(not math.isfinite(value) or value <= 0 for value in entity_expected_quantities):
+        raise ValueError("all expected entity quantities must be positive and finite")
+    if any(value < 2 for value in entity_final_times):
+        raise ValueError("final checkpoint times must be at least two")
     if not 0.0 < first_time_ratio < 1.0:
         raise ValueError("first checkpoint time ratio must lie in (0, 1)")
     if not 0.0 < first_demand_ratio < 1.0:
@@ -103,47 +117,42 @@ def build_exogenous_service_entities(
     if commitment_ratio <= 0.0 or any(weight <= 0.0 for weight in weights):
         raise ValueError("commitment ratio and checkpoint weights must be positive")
 
-    first_time = max(
-        1,
-        min(
-            final_checkpoint_time - 1,
-            round(final_checkpoint_time * first_time_ratio),
-        ),
-    )
-    final_quantity = expected_total_quantity_per_entity * commitment_ratio
-    first_quantity = final_quantity * first_demand_ratio
-    return tuple(
-        ServiceEntity(
-            entity_id,
-            (
-                Checkpoint(first_time, first_quantity, weights[0]),
-                Checkpoint(final_checkpoint_time, final_quantity, weights[1]),
-            ),
-            profile_id,
+    result = []
+    for entity_id, (expected, deadline) in enumerate(
+        zip(entity_expected_quantities, entity_final_times, strict=True)
+    ):
+        first_time = max(1, min(deadline - 1, math.floor(deadline * first_time_ratio + 0.5)))
+        final_quantity = expected * commitment_ratio
+        result.append(
+            ServiceEntity(
+                entity_id,
+                (
+                    Checkpoint(first_time, final_quantity * first_demand_ratio, weights[0]),
+                    Checkpoint(deadline, final_quantity, weights[1]),
+                ),
+                profile_id,
+            )
         )
-        for entity_id in range(entity_count)
-    )
+    return tuple(result)
 
 
 def _expected_checkpoint_horizon(
-    *,
-    new_jobs: int,
-    mean_interval: float,
-    ddt: float,
-    expected_route_work: float,
-    checkpoint_tightness: float,
-) -> int:
-    """Current deterministic calendar proxy, using public parameters only.
+    *, new_jobs: int, mean_interval: float, expected_route_work: float
+) -> float:
+    """Published service window: N_new / lambda + nominal expected job work."""
+    return new_jobs * mean_interval + expected_route_work
 
-    Section 6 leaves the final author-approved calendar equation TBD.  This
-    proxy preserves the existing factors while removing realization leakage:
-    expected last-arrival time plus one expected due-date allowance, scaled by
-    checkpoint tightness.  The selected value is recorded in instance metadata
-    as awaiting author confirmation.
-    """
 
-    public_horizon = new_jobs * mean_interval + ddt * expected_route_work
-    return max(2, round(public_horizon * checkpoint_tightness))
+def _independent_rng(seed: int, namespace: str) -> random.Random:
+    """Independent deterministic streams unaffected by parameter-grid changes."""
+    digest = hashlib.sha256(f"paperA-scenario-v2:{seed}:{namespace}".encode()).digest()
+    return random.Random(int.from_bytes(digest[:16], "big"))
+
+
+def scenario_config_hash(config: dict) -> str:
+    """Digest the full published scenario configuration, not the job realization."""
+    data = json.dumps(config, ensure_ascii=False, sort_keys=True, separators=(",", ":"))
+    return hashlib.sha256(data.encode("utf-8")).hexdigest()
 
 
 def make_instance(
@@ -174,7 +183,6 @@ def make_instance(
     # Public commitments and forecasts are constructed before, and without,
     # the RNG used for the realized job stream below.
     first_ratio = float(checkpoint_cfg["first_time_ratio"])
-    tightness = float(checkpoint_cfg["tightness"])
     commitment_ratio = float(checkpoint_cfg["commitment_ratio"])
     first_demand_ratio = float(checkpoint_cfg["first_demand_ratio"])
     weight_scale = float(checkpoint_cfg.get("weight_scale", 1.0))
@@ -186,19 +194,21 @@ def make_instance(
     expected_quantity_squared = fmean(
         value * value for value in range(quantity_low, quantity_high + 1)
     )
-    expected_entity_jobs = total_jobs / entity_count
-    expected_entity_quantity = expected_entity_jobs * expected_quantity
-    final_checkpoint_time = _expected_checkpoint_horizon(
-        new_jobs=new_jobs,
-        mean_interval=mean_interval,
-        ddt=ddt,
-        expected_route_work=expected_work,
-        checkpoint_tightness=tightness,
+    share_rng = _independent_rng(seed, "public_entity_shares")
+    raw_shares = [share_rng.uniform(0.8, 1.2) for _ in range(entity_count)]
+    total_share = sum(raw_shares)
+    shares = tuple(value / total_share for value in raw_shares)
+    deadlines_rng = _independent_rng(seed, "public_deadline_perturbations")
+    perturbations = tuple(deadlines_rng.uniform(-0.10, 0.10) for _ in range(entity_count))
+    base_horizon = _expected_checkpoint_horizon(
+        new_jobs=new_jobs, mean_interval=mean_interval, expected_route_work=expected_work
     )
+    final_times = tuple(max(2, math.floor(base_horizon * (1 + xi) + 0.5)) for xi in perturbations)
+    expected_entity_quantities = tuple(total_jobs * expected_quantity * pi for pi in shares)
     entities = build_exogenous_service_entities(
         entity_count=entity_count,
-        expected_total_quantity_per_entity=expected_entity_quantity,
-        final_checkpoint_time=final_checkpoint_time,
+        entity_expected_quantities=expected_entity_quantities,
+        entity_final_times=final_times,
         first_time_ratio=first_ratio,
         first_demand_ratio=first_demand_ratio,
         commitment_ratio=commitment_ratio,
@@ -210,14 +220,14 @@ def make_instance(
         total_arrival_rate=total_arrival_rate,
         quantity_mean=expected_quantity,
         quantity_second_moment=expected_quantity_squared,
-        max_time=final_checkpoint_time,
+        max_time=max(final_times),
+        entity_shares={entity_id: shares[entity_id] for entity_id in range(entity_count)},
     )
 
-    rng = random.Random(int(seed))
-    releases = _arrival_times(initial_jobs, new_jobs, mean_interval, rng)
-    assignments = list(range(entity_count))
-    assignments.extend(rng.randrange(entity_count) for _ in range(total_jobs - entity_count))
-    rng.shuffle(assignments)
+    releases = _arrival_times(initial_jobs, new_jobs, mean_interval, _independent_rng(seed, "arrivals"))
+    assigned_rng = _independent_rng(seed, "entity_assignments")
+    assignments = assigned_rng.choices(range(entity_count), weights=shares, k=total_jobs)
+    rng = _independent_rng(seed, "job_attributes")
 
     raw_jobs: list[dict] = []
     operation_id = 0
@@ -257,7 +267,8 @@ def make_instance(
         machines=tuple(Machine(index) for index in range(machines)),
         forecast_provider=forecast_provider,
         metadata={
-            "generator": "scenario_generator_v1", "seed": int(seed),
+            "generator": "scenario_generator_v2", "scenario_config_hash": scenario_config_hash(payload),
+            "seed": int(seed),
             "machines": machines, "initial_jobs": initial_jobs, "new_jobs": new_jobs,
             "target_load": load, "measured_load": measured_load, "ddt": ddt,
             "mean_arrival_interval": mean_interval, "load_time_window": observation_window,
@@ -265,20 +276,21 @@ def make_instance(
             "service_weight_scale": float(service_weight_scale),
             "service_commitment_source": "scenario_parameter_expectation",
             "realization_used_to_build_commitment": False,
-            "checkpoint_calendar_source": "public_expected_horizon_proxy",
-            "checkpoint_calendar_formula_status": "author_confirmation_required",
-            "expected_checkpoint_horizon": final_checkpoint_time,
-            "expected_jobs_per_entity": expected_entity_jobs,
+            "checkpoint_calendar_source": "published_service_window_with_entity_perturbation",
+            "expected_checkpoint_horizon": base_horizon,
+            "entity_shares": shares,
+            "entity_deadline_perturbations": perturbations,
+            "entity_final_times": final_times,
             "expected_quantity": expected_quantity,
             "expected_quantity_second_moment": expected_quantity_squared,
             "expected_commitment_quantity_per_entity": (
-                expected_entity_quantity * commitment_ratio
+                tuple(value * commitment_ratio for value in expected_entity_quantities)
             ),
             "forecast_source": "homogeneous_compound_poisson_public_statistics",
             "realization_used_to_build_forecast": False,
             "total_arrival_rate": total_arrival_rate,
-            "entity_arrival_rate": total_arrival_rate / entity_count,
-            "forecast_horizon": final_checkpoint_time,
+            "entity_arrival_rates": tuple(total_arrival_rate * pi for pi in shares),
+            "forecast_horizon": max(final_times),
             "forecast_bucket_length_status": "not_required_for_homogeneous_moments",
             "forecast_risk_kappa_status": "model_default_author_confirmation_required",
             "certificate_public_bounds": {
@@ -319,6 +331,7 @@ __all__ = [
     "make_instance",
     "make_scenario_instance",
     "scenario_names",
+    "scenario_config_hash",
     "scenario_spec",
     "seed_values",
 ]
