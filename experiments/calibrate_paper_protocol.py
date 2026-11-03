@@ -141,7 +141,7 @@ def calibrate(output_dir: Path, *, config_path: Path = CONFIG_PATH, seeds: tuple
     with tempfile.TemporaryDirectory(prefix="paperA-p42-guard-") as folder:
         path = Path(folder) / "scenario.json"
         path.write_text(json.dumps(guard_cfg, sort_keys=True), encoding="utf-8")
-        for seed in seeds[:min(2, len(seeds))]:
+        for seed in seeds:
             altered = make_scenario_instance("center", seed, config_path=path)
             for rule in RULES:
                 if simulate_classic_timeline(rule, altered) != timelines[(seed, rule.name)]:
