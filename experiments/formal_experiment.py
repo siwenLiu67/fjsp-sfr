@@ -37,7 +37,9 @@ from fjsp_sfr.experiments.paperA_contract import (
 from fjsp_sfr.experiments.train_streaming import linear_schedule
 from fjsp_sfr.experiments.validate_framework import build_rule_library
 from fjsp_sfr.generation.scale_config import make_scaled_instance
-from fjsp_sfr.generation.scenario_generator import seed_values
+from fjsp_sfr.generation.scenario_generator import (
+    seed_values, make_scenario_instance, load_scenario_config, scenario_config_hash,
+)
 from fjsp_sfr.rl.dqn_agent import DQNTrainer, HGTDQNAgent
 from fjsp_sfr.rl.graph import apply_information_masks, build_hetero_graph
 from fjsp_sfr.rl.mlp_agent import MLPPPOAgent
@@ -335,7 +337,7 @@ def train_ppo(
         library=library,
         instances=[],
         instance_factory=instance_factory,
-        base_seed=1000,
+        base_seed=(20000 if contract.name == "paper_20261030" else 1000),
         lr=3e-4,
         gamma=contract.gamma,
         gae_lambda=0.95,
@@ -439,7 +441,7 @@ def train_dqn(
         agent,
         library,
         instance_factory,
-        base_seed=1000,
+        base_seed=(20000 if contract.name == "paper_20261030" else 1000),
         feature_set=contract.feature_set,
         lr=3e-4,
         gamma=contract.gamma,
@@ -464,6 +466,10 @@ def run(args):
                 "calibration split"
             )
         global_reward_scale = load_global_reward_scale(args.f_ref_manifest)
+        if global_reward_scale.generator_id != "scenario_generator_v2":
+            raise ValueError("formal F_ref must use the corrected scenario_generator_v2")
+        if global_reward_scale.scenario_config_hash != scenario_config_hash(load_scenario_config()):
+            raise ValueError("formal F_ref scenario configuration hash mismatch")
         if global_reward_scale.calibration_partition != "calibration_center":
             raise ValueError("global F_ref must use the calibration_center split")
         if global_reward_scale.scenario != "center":
@@ -483,11 +489,16 @@ def run(args):
     library = load_library(args.library_file, contract=contract)
     train_scale = args.scale
     eval_scale = args.eval_scale or args.scale
-    instance_factory = lambda seed: make_scaled_instance(
-        seed, scale=train_scale, difficulty=args.difficulty
-    )
-    validation_count = 2 if args.smoke else len(VALIDATION_SEEDS)
-    validation_instances = [instance_factory(seed) for seed in VALIDATION_SEEDS[:validation_count]]
+    if contract.name == "paper_20261030":
+        instance_factory = lambda seed: make_scenario_instance("center", seed)
+        validation_seeds = seed_values("validation_center")
+    else:
+        instance_factory = lambda seed: make_scaled_instance(
+            seed, scale=train_scale, difficulty=args.difficulty
+        )
+        validation_seeds = VALIDATION_SEEDS
+    validation_count = 2 if args.smoke else len(validation_seeds)
+    validation_instances = [instance_factory(seed) for seed in validation_seeds[:validation_count]]
     fixed_action = None
     agent = None
     training_seconds = 0.0
@@ -604,13 +615,20 @@ def run(args):
             ),
         )
 
-    test_seeds = TEST_SEEDS_BY_SCALE[eval_scale]
-    if args.smoke:
-        test_seeds = test_seeds[:3]
-    test_instances = [
-        make_scaled_instance(seed, scale=eval_scale, difficulty=args.difficulty)
-        for seed in test_seeds
-    ]
+    if contract.name == "paper_20261030":
+        scenario = "center"
+        test_seeds = seed_values("test_center")
+        if args.smoke:
+            test_seeds = test_seeds[:3]
+        test_instances = [make_scenario_instance(scenario, seed) for seed in test_seeds]
+    else:
+        test_seeds = TEST_SEEDS_BY_SCALE[eval_scale]
+        if args.smoke:
+            test_seeds = test_seeds[:3]
+        test_instances = [
+            make_scaled_instance(seed, scale=eval_scale, difficulty=args.difficulty)
+            for seed in test_seeds
+        ]
     rows, policy_metrics = evaluate_set(
         library,
         test_instances,
