@@ -37,6 +37,8 @@ class GlobalRewardScale:
     payload_sha256: str
     calibration_partition: str = "calibration_center"
     scenario: str = "center"
+    generator_id: str = ""
+    scenario_config_hash: str = ""
 
 
 def _canonical_json(payload: object) -> str:
@@ -118,6 +120,13 @@ def compute_global_reward_scale(
         raise ValueError("calibration seed count must match instance count")
     if len(set(seeds)) != len(seeds):
         raise ValueError("calibration seeds must be unique")
+    generator_ids = {str(instance.metadata.get("generator", "")) for instance in instance_rows}
+    config_hashes = {str(instance.metadata.get("scenario_config_hash", "")) for instance in instance_rows}
+    if len(generator_ids) != 1 or len(config_hashes) != 1:
+        raise ValueError("reward-scale calibration instances use incompatible generator configurations")
+    generator_id = next(iter(generator_ids))
+    config_hash = next(iter(config_hashes))
+    formal_v2 = generator_id == "scenario_generator_v2" and bool(config_hash)
     spt = ClassicRule("SPT", ClassicRuleKind.SPT)
     atc = ClassicRule("ATC_K2", ClassicRuleKind.ATC, atc_k=2.0)
     results = tuple(
@@ -134,7 +143,7 @@ def compute_global_reward_scale(
         sum(row.f_spt + row.f_atc for row in results) / (2.0 * len(results)),
     )
     body = {
-        "schema": "paperA_global_reward_scale_v1",
+        "schema": "paperA_global_reward_scale_v2" if formal_v2 else "paperA_global_reward_scale_v1",
         "reference": GLOBAL_REWARD_REFERENCE,
         "formula": "max(1, mean_I[(F_SPT(I)+F_ATC_K2(I))/2])",
         "f_ref": f_ref,
@@ -143,6 +152,9 @@ def compute_global_reward_scale(
         "calibration_partition": calibration_partition,
         "scenario": scenario,
     }
+    if formal_v2:
+        body["generator_id"] = generator_id
+        body["scenario_config_hash"] = config_hash
     digest = hashlib.sha256(_canonical_json(body).encode("utf-8")).hexdigest()
     return GlobalRewardScale(
         f_ref,
@@ -151,6 +163,8 @@ def compute_global_reward_scale(
         digest,
         calibration_partition,
         scenario,
+        generator_id if formal_v2 else "",
+        config_hash if formal_v2 else "",
     )
 
 
@@ -160,7 +174,7 @@ def write_global_reward_scale(
     output = Path(path)
     output.parent.mkdir(parents=True, exist_ok=True)
     payload = {
-        "schema": "paperA_global_reward_scale_v1",
+        "schema": "paperA_global_reward_scale_v2" if scale.generator_id else "paperA_global_reward_scale_v1",
         "reference": GLOBAL_REWARD_REFERENCE,
         "formula": "max(1, mean_I[(F_SPT(I)+F_ATC_K2(I))/2])",
         "f_ref": scale.f_ref,
@@ -168,6 +182,7 @@ def write_global_reward_scale(
         "instances": [asdict(row) for row in scale.instances],
         "calibration_partition": scale.calibration_partition,
         "scenario": scale.scenario,
+        **({"generator_id": scale.generator_id, "scenario_config_hash": scale.scenario_config_hash} if scale.generator_id else {}),
         "payload_sha256": scale.payload_sha256,
     }
     output.write_text(
@@ -185,6 +200,11 @@ def load_global_reward_scale(path: str | Path) -> GlobalRewardScale:
     expected = hashlib.sha256(_canonical_json(payload).encode("utf-8")).hexdigest()
     if digest != expected:
         raise ValueError("reward-scale manifest hash mismatch")
+    if payload.get("schema") not in {"paperA_global_reward_scale_v1", "paperA_global_reward_scale_v2"}:
+        raise ValueError("reward-scale manifest schema unknown")
+    if payload.get("schema") == "paperA_global_reward_scale_v2":
+        if payload.get("generator_id") != "scenario_generator_v2" or not payload.get("scenario_config_hash"):
+            raise ValueError("reward-scale v2 requires compatible generator and configuration hash")
     if payload.get("reference") != GLOBAL_REWARD_REFERENCE:
         raise ValueError("reward-scale manifest uses an incompatible reference")
     f_ref = float(payload["f_ref"])
@@ -217,6 +237,8 @@ def load_global_reward_scale(path: str | Path) -> GlobalRewardScale:
         digest,
         str(payload.get("calibration_partition", "")),
         str(payload.get("scenario", "")),
+        str(payload.get("generator_id", "")),
+        str(payload.get("scenario_config_hash", "")),
     )
 
 

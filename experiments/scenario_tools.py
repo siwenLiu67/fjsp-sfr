@@ -26,6 +26,11 @@ def evaluate_rule(rule, instance) -> dict[str, float]:
         "F": float(objective.Z),
         "TT": float(objective.total_tardiness),
         "WSF": float(objective.weighted_checkpoint_shortfall),
+        "early_shortfall_count": sum(
+            objective.per_checkpoint_shortfall[(entity.entity_id, 0)] > 0.0
+            for entity in rollout.entities
+        ),
+        "early_checkpoint_count": len(rollout.entities),
     }
 
 

@@ -421,6 +421,13 @@ class PPOTrainer:
             raise ValueError("instances must not be empty without instance_factory")
         if library.action_size() != agent.action_size:
             raise ValueError("library size must match the agent action size")
+        if graph_config == PAPER_GRAPH:
+            # Classic-only test libraries have no symbolic feature matrix and
+            # therefore do not require the serialized symbolic-library header.
+            # Any symbolic rule in a formal run must have the full paper14 schema.
+            from fjsp_sfr.dispatch.symbolic_rule import SymbolicRule
+            if any(isinstance(rule, SymbolicRule) for rule in library.rules):
+                library.validate_protocol(feature_set, formal=True)
         if epochs_per_update <= 0:
             raise ValueError("epochs_per_update must be positive")
         if not torch.isfinite(torch.tensor(reward_scale)) or reward_scale <= 0.0:

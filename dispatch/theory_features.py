@@ -213,7 +213,7 @@ def resolve_paper_feature_scales(
         if declared is not None:
             p_bar = float(declared["bar_p"])
             w_bar = float(declared["bar_W"])
-        elif metadata.get("generator") == "scenario_generator_v1":
+        elif metadata.get("generator") in {"scenario_generator_v1", "scenario_generator_v2"}:
             p_bar = PAPER_MEAN_PROCESSING_TIME
             w_bar = PAPER_MEAN_JOB_WORK
         else:
