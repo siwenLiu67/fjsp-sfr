@@ -11,11 +11,12 @@ import itertools
 import json
 import math
 import tempfile
+from copy import deepcopy
 from pathlib import Path
 from statistics import fmean
 
 from fjsp_sfr.dispatch.classic_rules import ClassicRule, ClassicRuleKind
-from fjsp_sfr.experiments.scenario_tools import evaluate_rule
+from fjsp_sfr.env.ca_rule_selection import CAPPORuleSelectionEnv
 from fjsp_sfr.generation.scenario_generator import (
     CONFIG_PATH, load_scenario_config, make_scenario_instance, seed_values,
 )
@@ -28,6 +29,41 @@ RULES = (
     ClassicRule("SPT", ClassicRuleKind.SPT),
     ClassicRule("ATC", ClassicRuleKind.ATC, atc_k=2.0),
 )
+
+
+def simulate_classic_timeline(rule, instance) -> dict[int, int]:
+    """Compute one true, full scheduling rollout; never use future jobs in dispatch."""
+    env = CAPPORuleSelectionEnv(deepcopy(instance))
+    env.reset()
+    while env.current_metrics and env.current_metrics.is_active:
+        result = env.step_principle(0, rule)
+        if result.terminated:
+            break
+    completed = dict(env._state.completed_jobs)
+    if len(completed) != len(instance.jobs):
+        raise ValueError("calibration rule did not complete all jobs")
+    return completed
+
+
+def evaluate_fixed_timeline(instance, completed: dict[int, int]) -> dict:
+    """Reprice a precomputed SPT/ATC schedule against public candidate contracts."""
+    tt = sum(max(0, completed[job.job_id] - job.due_date) for job in instance.jobs)
+    wsf = 0.0
+    early = 0
+    for entity in instance.entities:
+        jobs = instance.jobs_of_entity(entity.entity_id)
+        for index, checkpoint in enumerate(entity.checkpoints):
+            delivered = sum(
+                job.quantity for job in jobs if completed[job.job_id] <= checkpoint.time
+            )
+            shortage = max(0.0, checkpoint.required_quantity - delivered)
+            wsf += checkpoint.weight * shortage
+            if index == 0 and shortage > 0.0:
+                early += 1
+    return {
+        "F": tt + wsf, "TT": tt, "WSF": wsf,
+        "early_shortfall_count": early, "early_checkpoint_count": len(instance.entities),
+    }
 
 
 def unavoidable_supply_shortfall(instance) -> float:
@@ -88,10 +124,30 @@ def calibrate(output_dir: Path, *, config_path: Path = CONFIG_PATH, seeds: tuple
     if set(seeds) & reserved:
         raise ValueError("calibration seeds overlap other experiment partitions")
 
+    # Classical dispatch scores depend on processing time/due date, not public
+    # service targets. Compute each seed/rule schedule once. Reprice the frozen
+    # completed-job timeline against all 60 public contract combinations.
+    timelines = {}
+    for seed in seeds:
+        instance = make_scenario_instance("center", seed, config_path=config_path)
+        for rule in RULES:
+            timelines[(seed, rule.name)] = simulate_classic_timeline(rule, instance)
+
+    # Validate schedule invariance on predeclared boundary cases before reuse.
+    guard_cfg = json.loads(json.dumps(base))
+    guard_cfg["checkpoint"]["commitment_ratio"] = RHO[-1]
+    guard_cfg["checkpoint"]["first_time_ratio"] = THETA[0]
+    guard_cfg["checkpoint"]["weights"] = [OMEGA[-1], 3 * OMEGA[-1]]
+    with tempfile.TemporaryDirectory(prefix="paperA-p42-guard-") as folder:
+        path = Path(folder) / "scenario.json"
+        path.write_text(json.dumps(guard_cfg, sort_keys=True), encoding="utf-8")
+        for seed in seeds[:min(2, len(seeds))]:
+            altered = make_scenario_instance("center", seed, config_path=path)
+            for rule in RULES:
+                if simulate_classic_timeline(rule, altered) != timelines[(seed, rule.name)]:
+                    raise RuntimeError("classical rollout changed under service contract; disable timeline reuse")
+
     rows = []
-    # SPT and ATC only read processing/due-date data. A common positive weight
-    # multiplier changes neither action order nor first-checkpoint completion
-    # counts. Reuse each (rho, theta) rollout across all five omega levels.
     for rho, theta in itertools.product(RHO, THETA):
         cfg = json.loads(json.dumps(base))
         cp = cfg["checkpoint"]
@@ -108,7 +164,7 @@ def calibrate(output_dir: Path, *, config_path: Path = CONFIG_PATH, seeds: tuple
                 instance = make_scenario_instance("center", seed, config_path=path)
                 lower = unavoidable_supply_shortfall(instance)
                 for rule in RULES:
-                    metrics = evaluate_rule(rule, instance)
+                    metrics = evaluate_fixed_timeline(instance, timelines[(seed, rule.name)])
                     metrics["L"] = lower
                     baseline[rule.name].append(metrics)
             for omega in OMEGA:
