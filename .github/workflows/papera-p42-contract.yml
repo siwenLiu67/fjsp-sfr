@@ -23,7 +23,7 @@ jobs:
         with:
           python-version: "3.12"
       - name: Install test dependencies
-        run: python -m pip install --upgrade pytest torch numpy
+        run: python -m pip install --upgrade pytest torch numpy pandas scipy matplotlib scikit-learn
       - name: Compile Python files
         run: python -m compileall -q core dispatch env generation experiments rl tests
       - name: Validate P4.2 contracts
