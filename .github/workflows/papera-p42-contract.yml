@@ -17,6 +17,8 @@ jobs:
     timeout-minutes: 90
     steps:
       - uses: actions/checkout@v4
+      - name: Set up fjsp_sfr package import alias
+        run: ln -s "$PWD" ../fjsp_sfr
       - uses: actions/setup-python@v5
         with:
           python-version: "3.12"
