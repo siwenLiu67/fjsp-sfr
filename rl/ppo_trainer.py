@@ -421,6 +421,8 @@ class PPOTrainer:
             raise ValueError("instances must not be empty without instance_factory")
         if library.action_size() != agent.action_size:
             raise ValueError("library size must match the agent action size")
+        if graph_config == PAPER_GRAPH:
+            library.validate_protocol(feature_set, formal=True)
         if epochs_per_update <= 0:
             raise ValueError("epochs_per_update must be positive")
         if not torch.isfinite(torch.tensor(reward_scale)) or reward_scale <= 0.0:
