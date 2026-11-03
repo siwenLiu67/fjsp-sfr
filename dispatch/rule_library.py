@@ -6,11 +6,26 @@ import json
 from dataclasses import dataclass
 
 from fjsp_sfr.dispatch.symbolic_rule import SymbolicRule
+from fjsp_sfr.dispatch.theory_features import feature_names_for
 
 
 @dataclass(frozen=True)
 class RuleLibrary:
     rules: tuple[object, ...]
+    feature_protocol: str | None = None
+
+    def validate_protocol(self, feature_set: str, *, formal: bool = False) -> None:
+        expected = feature_names_for(feature_set)
+        if formal and feature_set != "paper14":
+            raise ValueError("formal rules require paper14")
+        if formal and self.feature_protocol != "paper14":
+            raise ValueError("formal rule library lacks the paper14 protocol declaration")
+        for rule in self.rules:
+            if isinstance(rule, SymbolicRule):
+                if rule.feature_set != feature_set:
+                    raise ValueError(f"rule {rule.name!r} uses {rule.feature_set}, expected {feature_set}")
+                if feature_names_for(rule.feature_set) != expected:
+                    raise ValueError("rule feature ordering mismatch")
 
     def action_size(self) -> int:
         return len(self.rules)
@@ -41,6 +56,7 @@ class RuleLibrary:
         from fjsp_sfr.dispatch.classic_rules import ClassicRule
 
         return cls(
+            feature_protocol=data.get("feature_protocol"),
             rules=tuple(
                 ClassicRule.from_dict(item)
                 if item.get("kind") == "classic"
@@ -51,5 +67,7 @@ class RuleLibrary:
 
     def to_json(self, path: str) -> None:
         data = {"rules": [rule.to_dict() for rule in self.rules]}
+        if self.feature_protocol is not None:
+            data["feature_protocol"] = self.feature_protocol
         with open(path, "w", encoding="utf-8") as stream:
             json.dump(data, stream, indent=2, ensure_ascii=False)
